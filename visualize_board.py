@@ -1,6 +1,7 @@
 import logging
 from board import Board
 from enums import TileType
+from game_config import GameConfig
 
 def print_board(board: Board):
     """
@@ -10,6 +11,9 @@ def print_board(board: Board):
         print("Board is empty.")
         return
 
+    # Get the coordinates of all clan camps for marking
+    camp_coords = set(GameConfig.get_clan_camps().values())
+
     # 1. Define a character mapping for each tile type
     tile_char_map = {
         TileType.BORDER: "+",
@@ -17,6 +21,7 @@ def print_board(board: Board):
         TileType.RIVER_TERRITORY: "R",
         TileType.SHADOW_TERRITORY: "S",
         TileType.WIND_TERRITORY: "W",
+        TileType.OBSTACLE: "X",
     }
 
     # 2. Find the boundaries of the grid to iterate over
@@ -33,10 +38,15 @@ def print_board(board: Board):
         row_str = ""
         # Iterate from left to right (min_x to max_x)
         for x in range(min_x, max_x + 1):
-            tile = board.get_tile((x, y))
-            if tile:
+            pos = (x, y)
+            tile = board.get_tile(pos)
+
+            if pos in camp_coords:
+                # Prioritize marking camp entrances
+                row_str += "C"
+            elif tile:
                 # If a tile exists, get its character from the map
-                row_str += tile_char_map.get(tile.type, "?")
+                row_str += tile_char_map.get(tile.type, "?") # '?' for unknown tile types
             else:
                 # If no tile exists at this coordinate, it's a void space
                 row_str += " "

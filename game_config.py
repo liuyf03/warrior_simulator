@@ -1,6 +1,7 @@
 """
 This module holds global configuration parameters for the game simulation.
 """
+from enums import ClanName
 
 class GameConfig:
     """
@@ -19,3 +20,24 @@ class GameConfig:
         """Calculates the extent of the border strips."""
         # (M-1)/2 + M + N
         return GameConfig.border_half_width() + GameConfig.M + GameConfig.N
+
+    @staticmethod
+    def get_clan_camps() -> dict:
+        """
+        Calculates the coordinates for each clan's camp entrance based on N and M.
+        These are typically the corner-most tiles of each territory.
+        """
+        offset = (GameConfig.M + 1) // 2
+        n = GameConfig.N
+
+        # Calculate the corner coordinates
+        tc_x = -offset - n + 1
+        tc_y = offset + n - 1
+        rc_x = offset + n - 1
+
+        return {
+            ClanName.THUNDERCLAN: (tc_x, tc_y),      # Top-Left
+            ClanName.RIVERCLAN: (rc_x, tc_y),       # Top-Right
+            ClanName.SHADOWCLAN: (tc_x, -tc_y),     # Bottom-Left
+            ClanName.WINDCLAN: (rc_x, -tc_y)      # Bottom-Right
+        }

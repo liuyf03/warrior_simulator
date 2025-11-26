@@ -17,12 +17,11 @@ class Clan:
         camp_entrance (Tuple[int, int]): The coordinates for the Clan's camp entrance.
     """
 
-    def __init__(self, name: ClanName, territory_bounds: Dict[str, Tuple[int, int]], camp_entrance: Tuple[int, int]):
+    def __init__(self, name: ClanName, camp_entrance: Tuple[int, int]):
         """Initializes a new Clan instance."""
         self.name: ClanName = name
         self.cats: List[Cat] = []
         self.prey_pile: int = 0
-        self.territory_bounds: Dict[str, Tuple[int, int]] = territory_bounds
         self.camp_entrance: Tuple[int, int] = camp_entrance
         logging.info(f"{self.name} has been established.")
 

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from enums import TileType, ClanName
 
 class Tile:
@@ -12,7 +12,11 @@ class Tile:
         self.prey_count: int = 0
         self.paw_print: Optional[ClanName] = None  # None or ClanName
         self.is_highlighted: bool = False # For border special spots or UI
-        self.cat = None # The cat currently standing here (reference to Cat object)
+
+    @property
+    def is_walkable(self) -> bool:
+        """Returns True if the tile is not an obstacle."""
+        return self.type != TileType.OBSTACLE
 
     def __repr__(self) -> str:
         return f"Tile({self.x}, {self.y}, {self.type.value})"

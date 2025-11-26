@@ -55,6 +55,21 @@ class TileType(str, Enum):
     RIVER_TERRITORY = "RiverClan Territory"
     WIND_TERRITORY = "WindClan Territory"
     SHADOW_TERRITORY = "ShadowClan Territory"
+    OBSTACLE = "Obstacle"
+
 
     def __str__(self):
         return self.value
+
+class Direction(Enum):
+    """
+    Defines the eight directions of movement as coordinate tuples (x, y).
+    """
+    N = (0, 1)
+    S = (0, -1)
+    E = (1, 0)
+    W = (-1, 0)
+    NE = (1, 1)
+    NW = (-1, 1)
+    SE = (1, -1)
+    SW = (-1, -1)

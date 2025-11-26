@@ -1,7 +1,7 @@
 import logging
 from typing import Tuple, List, Optional
 
-from enums import ClanName, TileType
+from enums import ClanName, TileType, Direction
 from game_config import GameConfig
 from tile import Tile
 
@@ -94,28 +94,59 @@ class Board:
 
     # --- Public Methods ---
 
-    def is_valid_position(self, pos: Tuple[int, int]) -> bool:
-        """Returns True if pos (x,y) is a walkable tile."""
-        return pos in self.grid
+    # def is_valid_position(self, pos: Tuple[int, int]) -> bool:
+    #     """Returns True if pos (x,y) is a walkable tile."""
+    #     return pos in self.grid
 
     def get_tile(self, pos: Tuple[int, int]) -> Optional[Tile]:
         """Returns the Tile object at the given position, or None if no tile exists."""
         return self.grid.get(pos)
 
-    def get_neighbors(self, pos: Tuple[int, int]) -> List[Tuple[int, int]]:
-        """Returns list of valid adjacent coordinates (N, S, E, W, and diagonals)."""
-        x, y = pos
-        # 8 directions
-        directions = [
-            (0, 1), (0, -1), (1, 0), (-1, 0), 
-            (1, 1), (1, -1), (-1, 1), (-1, -1)
-        ]
-        valid_neighbors = []
-        for dx, dy in directions:
-            new_pos = (x + dx, y + dy)
-            if new_pos in self.grid: # Check if the neighbor tile exists in our grid
-                valid_neighbors.append(new_pos)
-        return valid_neighbors
+    # def get_neighbors(self, pos: Tuple[int, int]) -> List[Tuple[int, int]]:
+    #     """Returns list of valid adjacent coordinates (N, S, E, W, and diagonals)."""
+    #     x, y = pos
+    #     valid_neighbors = []
+    #     # Iterate through the Direction enum instead of a hardcoded list
+    #     for direction in Direction:
+    #         dx, dy = direction.value
+    #         new_pos = (x + dx, y + dy)
+    #         if self.get_tile(new_pos): # Check if the neighbor tile exists in our grid
+    #             valid_neighbors.append(new_pos)
+    #     return valid_neighbors
+
+    def trace_path(self, start_pos: Tuple[int, int], direction: Direction, steps: int, can_enter_func) -> Tuple[Tuple[int, int], List[Tile]]:
+        """
+        Simulates a move step-by-step and returns the final position and path taken.
+        
+        Args:
+            start_pos: The starting (x, y) coordinate tuple.
+            direction: The Direction enum member to move in.
+            steps: The maximum number of tiles to move (e.g., from a dice roll).
+            can_enter_func: A function that takes a Tile object and returns True if a cat
+                            is allowed to step onto it based on game rules.
+                            
+        Returns:
+            A tuple containing:
+            - final_pos (Tuple[int, int]): The coordinate where the cat stopped.
+            - visited_tiles (List[Tile]): The list of tiles the cat stepped on.
+        """
+        current_pos = start_pos
+        visited_tiles = []
+
+        dx, dy = direction.value
+        for _ in range(steps):
+            next_pos = (current_pos[0] + dx, current_pos[1] + dy)
+            tile = self.get_tile(next_pos)
+
+            # Stop if the move is invalid (hits edge, obstacle, or breaks a rule)
+            if not tile or not tile.is_walkable or not can_enter_func(tile):
+                break
+
+            # If the move is valid, update position and record the tile
+            current_pos = next_pos
+            visited_tiles.append(tile)
+
+        return current_pos, visited_tiles
 
     def get_territory_of_position(self, position: Tuple[int, int]) -> Optional[ClanName]:
         """Identifies which clan territory a position belongs to, or None if it's a border or invalid tile."""
