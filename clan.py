@@ -92,6 +92,42 @@ class Clan:
                 
         return squad_cats, squad_ranks
 
+    def promote_apprentice(self) -> Cat | None:
+        """
+        Finds the best apprentice and promotes them to a warrior.
+        Prioritizes healthy apprentices. Returns the promoted cat or None.
+        """
+        # Sort apprentices by health (healthy first)
+        eligible_apprentices = sorted(
+            [c for c in self.cats if c.rank == Rank.APPRENTICE],
+            key=lambda cat: cat.is_wounded
+        )
+
+        if eligible_apprentices:
+            cat_to_promote = eligible_apprentices[0]
+            if cat_to_promote.promote():
+                return cat_to_promote
+        return None
+
+    def promote_warrior_to_deputy(self) -> Cat | None:
+        """
+        If no deputy exists, finds the best warrior and promotes them.
+        Prioritizes healthy warriors. Returns the promoted cat or None.
+        """
+        if self.has_deputy():
+            return None
+
+        eligible_warriors = sorted(
+            [c for c in self.cats if c.rank == Rank.WARRIOR],
+            key=lambda cat: cat.is_wounded
+        )
+
+        if eligible_warriors:
+            cat_to_promote = eligible_warriors[0]
+            if cat_to_promote.promote():
+                return cat_to_promote
+        return None
+
     def __repr__(self) -> str:
         """Provides a developer-friendly representation of the Clan."""
         return f"Clan(name='{self.name}', members={len(self.cats)}, prey={self.prey_pile})"

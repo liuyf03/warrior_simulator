@@ -318,22 +318,17 @@ class GameEngine:
         """
         logging.info(f"Resolving combat: {winning_clan.name} is victorious.")
 
-        # Reward 1: Promote an Apprentice if possible
-        apprentices = [cat for cat in winning_clan.cats if cat.rank == Rank.APPRENTICE]
-        if apprentices:
-            apprentice_to_promote = apprentices[0]
-            apprentice_to_promote.promote()
-            logging.info(f"  As a reward for victory, {apprentice_to_promote.name} has been promoted to a Warrior!")
+        # Reward 1: Try to promote an Apprentice
+        promoted_apprentice = winning_clan.promote_apprentice()
+        if promoted_apprentice:
+            logging.info(f"  As a reward for victory, {promoted_apprentice.name} has been promoted to a Warrior!")
             return
 
-        # Reward 2: If no apprentices, promote a Warrior to Deputy if needed
-        if not winning_clan.has_deputy():
-            warriors = [cat for cat in winning_clan.cats if cat.rank == Rank.WARRIOR]
-            if warriors:
-                warrior_to_promote = warriors[0]
-                warrior_to_promote.promote()
-                logging.info(f"  As a reward for victory, {warrior_to_promote.name} has been promoted to Deputy!")
-                return
+        # Reward 2: If no apprentice was promoted, try to promote a Warrior to Deputy
+        promoted_warrior = winning_clan.promote_warrior_to_deputy()
+        if promoted_warrior:
+            logging.info(f"  As a reward for victory, {promoted_warrior.name} has been promoted to Deputy!")
+            return
 
         # Reward 3: If no promotions are possible, replenish prey
         logging.info(f"  As a reward for victory, the prey has been replenished in {winning_clan.name}'s territory.")
