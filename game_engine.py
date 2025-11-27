@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import Tuple, Dict, List
 
 from board import Board
@@ -6,6 +7,7 @@ from cat import Cat
 from clan import Clan
 from combat_system import CombatSystem
 from deck import Deck
+from game_mechanics import Dice
 from game_config import GameConfig
 from enums import Direction, TileType, ClanName, CombatMove, Rank
 from tile import Tile
@@ -20,7 +22,10 @@ class GameEngine:
         self.board = Board()
         self.clans: Dict[ClanName, Clan] = {}
         self.combat_deck = self._initialize_combat_deck()
+        self.dice = Dice(sides=6) # A standard 6-sided die for general purpose rolls
         self._initialize_clans()
+        self._populate_initial_prey()
+
         logging.info("GameEngine initialized.")
 
     def _initialize_combat_deck(self) -> Deck:
@@ -31,6 +36,14 @@ class GameEngine:
         for move in CombatMove:
             all_cards.extend([move] * card_copies)
         return Deck(all_cards)
+
+    def _populate_initial_prey(self):
+        """Adds one prey to every spawn slot on the board."""
+        logging.info("Populating board with initial prey...")
+        for clan_name in self.clans:
+            # The number of spawn slots is equal to the hunting ground size
+            for i in range(GameConfig.HUNTING_GROUND_SIZE):
+                self.board.spawn_prey(clan_name, slot_number=i + 1)
 
     def _initialize_clans(self):
         """Creates instances for each clan and stores them."""
@@ -56,6 +69,22 @@ class GameEngine:
 
             # Store the populated clan in the engine
             self.clans[clan_name] = new_clan
+
+    def execute_prey_replenish(self, clan: Clan, count: int = 1):
+        """
+        Adds a specified number of prey to random spawn slots in a clan's territory.
+        """
+        logging.info(f"Replenishing {count} prey in {clan.name.value}'s territory.")
+        
+        num_spawn_slots = GameConfig.HUNTING_GROUND_SIZE
+        if num_spawn_slots == 0:
+            logging.warning("No spawn slots available to replenish prey.")
+            return
+
+        for _ in range(count):
+            # Roll a die to determine which prey slot to replenish.
+            random_slot = self.dice.roll(sides=num_spawn_slots)
+            self.board.spawn_prey(clan.name, random_slot)
 
     def execute_hunt_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], int]:
         """

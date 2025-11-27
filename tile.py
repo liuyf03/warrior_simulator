@@ -12,6 +12,7 @@ class Tile:
         self.prey_count: int = 0
         self.paw_print: Optional[ClanName] = None  # None or ClanName
         self.is_highlighted: bool = False # For border special spots or UI
+        self.is_spawn_point: bool = False # For prey spawn locations
 
     @property
     def is_walkable(self) -> bool:

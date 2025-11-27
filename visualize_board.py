@@ -45,8 +45,10 @@ def print_board(board: Board):
                 # Prioritize marking camp entrances
                 row_str += "C"
             elif tile:
-                # If a tile exists, get its character from the map
-                row_str += tile_char_map.get(tile.type, "?") # '?' for unknown tile types
+                if tile.is_spawn_point:
+                    row_str += "P" # Mark Prey spawn points
+                else:
+                    row_str += tile_char_map.get(tile.type, "?") # Otherwise, show tile type
             else:
                 # If no tile exists at this coordinate, it's a void space
                 row_str += " "

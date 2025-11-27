@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import Tuple, List, Optional
 
 from enums import ClanName, TileType, Direction
@@ -20,7 +21,8 @@ class Board:
         """
         Initializes the Board by generating all legal tiles.
         """
-        self.grid: dict[Tuple[int, int], Tile] = {}  # Map (x, y) -> Tile object
+        self.grid: dict[Tuple[int, int], Tile] = {}
+        self.spawn_points: dict[ClanName, dict[int, Tuple[int, int]]] = {}
         self._initialize_board()
         logging.info(f"Board initialized with HUNTING_GROUND_SIZE={GameConfig.HUNTING_GROUND_SIZE}, BORDER_WIDTH={GameConfig.BORDER_WIDTH}. Total tiles: {len(self.grid)}")
 
@@ -28,6 +30,7 @@ class Board:
         """Generates all legal tiles based on N and M."""
         self._generate_border()
         self._generate_clan_territories()
+        self._assign_spawn_points()
 
     def _generate_border(self):
         """
@@ -92,27 +95,111 @@ class Board:
                 # Wind (Reflect X & Y -> Positive X, Negative Y)
                 self.grid[(-x, -y)] = Tile(-x, -y, TileType.WIND_TERRITORY)
 
+    def _assign_spawn_points(self):
+        """
+        Assigns 6 prey spawn slots per clan using a symmetrical pattern.
+        Constraint 1: One prey per row/column in the territory (Permutation).
+        Constraint 2: All clans share the exact same pattern, reflected.
+        """
+        n = GameConfig.HUNTING_GROUND_SIZE
+        m = GameConfig.BORDER_WIDTH
+        
+        # Calculate Base (ThunderClan) Start Coordinates
+        # ThunderClan is Top-Left: Negative X, Positive Y
+        offset = (m + 1) // 2
+        base_x_start = -offset - n + 1
+        base_y_start = offset
+
+        # Get all camp coordinates to avoid placing spawn points on them
+        camp_coords = set(GameConfig.get_clan_camps().values())
+
+        col_indices = []
+        # 1. Generate and validate the Master Pattern (The "Seed")
+        while True:
+            # Generate a potential pattern
+            potential_indices = list(range(n))
+            random.shuffle(potential_indices)
+            
+            # Check if this pattern would cause any spawn point to overlap with a camp
+            overlap_found = False
+            for row_idx, col_idx in enumerate(potential_indices):
+                base_x = base_x_start + col_idx
+                base_y = base_y_start + row_idx
+                
+                # Check all 4 reflections for this single point
+                if (base_x, base_y) in camp_coords or \
+                   (-base_x, base_y) in camp_coords or \
+                   (base_x, -base_y) in camp_coords or \
+                   (-base_x, -base_y) in camp_coords:
+                    overlap_found = True
+                    break # This permutation is invalid, no need to check further
+            
+            if not overlap_found:
+                col_indices = potential_indices
+                break # Found a valid permutation, exit the loop
+
+        # Multipliers for reflections: (x_mult, y_mult)
+        clan_orientations = {
+            ClanName.THUNDERCLAN: (1, 1),   # Base
+            ClanName.RIVERCLAN:   (-1, 1),  # Reflect X
+            ClanName.SHADOWCLAN:  (1, -1),  # Reflect Y
+            ClanName.WINDCLAN:    (-1, -1)  # Reflect Both
+        }
+
+        for clan_name, (x_mult, y_mult) in clan_orientations.items():
+            # Reset/Ensure dict exists
+            self.spawn_points[clan_name] = {}
+
+            # Apply the Master Pattern
+            for row_idx, col_idx in enumerate(col_indices):
+                
+                # Calculate Base Position (relative to ThunderClan's territory)
+                # row_idx maps to Y (0 to 5)
+                # col_idx maps to X (0 to 5, randomized)
+                base_x = base_x_start + col_idx
+                base_y = base_y_start + row_idx
+                
+                # Apply Reflection to get the final coordinates
+                final_x = base_x * x_mult
+                final_y = base_y * y_mult
+                
+                # Map to Slot ID (1-6)
+                slot_id = row_idx + 1
+                
+                # Store the spawn point coordinate
+                self.spawn_points[clan_name][slot_id] = (final_x, final_y)
+                
+                # Optional: Flag the tile for visualization
+                if (final_x, final_y) in self.grid:
+                    self.grid[(final_x, final_y)].is_spawn_point = True
+
     # --- Public Methods ---
 
-    # def is_valid_position(self, pos: Tuple[int, int]) -> bool:
-    #     """Returns True if pos (x,y) is a walkable tile."""
-    #     return pos in self.grid
+    def spawn_prey(self, clan_name: ClanName, slot_number: int) -> bool:
+        """
+        Places a prey on the specific numbered slot for the given clan.
+        Returns True if successful, False if invalid.
+        """
+        clan_spawns = self.spawn_points.get(clan_name)
+        if not clan_spawns:
+            logging.warning(f"Attempted to spawn prey for non-existent clan: {clan_name}")
+            return False
+
+        target_pos = clan_spawns.get(slot_number)
+        if target_pos:
+            tile = self.get_tile(target_pos)
+            if tile:
+                tile.prey_count += 1
+                logging.info(f"  [Board] Prey spawned for {clan_name.value} at slot {slot_number} {target_pos}")
+                return True
+            else:
+                logging.error(f"Spawn point {target_pos} for {clan_name.value} does not exist on grid.")
+                return False
+        return False
 
     def get_tile(self, pos: Tuple[int, int]) -> Optional[Tile]:
         """Returns the Tile object at the given position, or None if no tile exists."""
         return self.grid.get(pos)
-
-    # def get_neighbors(self, pos: Tuple[int, int]) -> List[Tuple[int, int]]:
-    #     """Returns list of valid adjacent coordinates (N, S, E, W, and diagonals)."""
-    #     x, y = pos
-    #     valid_neighbors = []
-    #     # Iterate through the Direction enum instead of a hardcoded list
-    #     for direction in Direction:
-    #         dx, dy = direction.value
-    #         new_pos = (x + dx, y + dy)
-    #         if self.get_tile(new_pos): # Check if the neighbor tile exists in our grid
-    #             valid_neighbors.append(new_pos)
-    #     return valid_neighbors
 
     def trace_path(self, start_pos: Tuple[int, int], direction: Direction, steps: int, can_enter_func, stop_cond_func=None) -> Tuple[Tuple[int, int], List[Tile]]:
         """
