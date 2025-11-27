@@ -1,7 +1,7 @@
 """
 This module holds global configuration parameters for the game simulation.
 """
-from enums import ClanName
+from enums import ClanName, Rank
 
 class GameConfig:
     """
@@ -9,6 +9,14 @@ class GameConfig:
     """
     N: int = 6  # Size parameter for hunting grounds
     M: int = 3  # Width parameter for border areas
+
+    # Point values for winning a fight based on rank
+    SCORE_MAP = {
+        Rank.LEADER: 5,
+        Rank.DEPUTY: 4,
+        Rank.WARRIOR: 3,
+        Rank.APPRENTICE: 1
+    }
 
     @staticmethod
     def border_half_width() -> int:

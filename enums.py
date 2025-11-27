@@ -73,3 +73,13 @@ class Direction(Enum):
     NW = (-1, 1)
     SE = (1, -1)
     SW = (-1, -1)
+
+class CombatMove(str, Enum):
+    """Defines the possible combat moves a cat can make."""
+    CLAW_SCRATCH = "Claw scratch"
+    BITE = "Bite"
+    LEAP = "Leap"
+    KICK = "Kick"
+
+    def __str__(self):
+        return self.value
