@@ -7,7 +7,7 @@ from cat import Cat
 from clan import Clan
 from combat_system import CombatSystem
 from deck import Deck
-from game_mechanics import Dice
+from game_mechanics import Dice, Spinner
 from game_config import GameConfig
 from enums import Direction, TileType, ClanName, CombatMove, Rank
 from tile import Tile
@@ -22,6 +22,7 @@ class GameEngine:
         self.board = Board()
         self.clans: Dict[ClanName, Clan] = {}
         self.combat_deck = self._initialize_combat_deck()
+        self.spinner = Spinner()
         self.dice = Dice(sides=6) # A standard 6-sided die for general purpose rolls
         self._initialize_clans()
         self._populate_initial_prey()
@@ -86,6 +87,23 @@ class GameEngine:
             random_slot = self.dice.roll(sides=num_spawn_slots)
             self.board.spawn_prey(clan.name, random_slot)
 
+    def execute_hunt(self, cat: Cat):
+        """
+        Spins for a direction, rolls for steps, and executes a hunt move.
+        """
+        if not cat.position:
+            logging.warning(f"{cat.name} is in the medicine den and cannot hunt.")
+            return
+
+        # 1. Spin for a random direction
+        direction = self.spinner.spin()
+
+        # 2. Roll the dice for the number of steps
+        steps = self.dice.roll()
+
+        # 3. Call the underlying move execution method
+        self.execute_hunt_move(cat, direction, steps)
+
     def execute_hunt_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], int]:
         """
         Moves a cat according to Hunting rules and processes the outcome.
@@ -125,6 +143,52 @@ class GameEngine:
             self.clans[cat.clan_id].add_prey(prey_caught)
         
         return final_pos, prey_caught
+
+    def execute_border_patrol(self, cat: Cat):
+        """
+        Spins, rolls, and executes a patrol move with intelligent re-rolls.
+        If a cat is in its territory, it will try to move towards the border.
+        """
+        if not cat.position:
+            logging.warning(f"{cat.name} is in the medicine den and cannot patrol.")
+            return
+
+        # --- Determine the move (direction and steps) ---
+        chosen_direction: Direction | None = None
+        chosen_steps: int | None = None
+
+        initial_dist_to_border = self.board.get_distance_to_border(cat.position)
+
+        # Case 1: Cat is already on the border, any move is fine.
+        if initial_dist_to_border == 0:
+            logging.info(f"{cat.name} is on the border, choosing a random patrol route.")
+            chosen_direction = self.spinner.spin()
+            chosen_steps = self.dice.roll()
+        else:
+            # Case 2: Cat is in territory, try to find a move that gets closer to the border.
+            max_retries = GameConfig.MAX_PATROL_REROLLS
+            for i in range(max_retries):
+                direction = self.spinner.spin()
+                steps = self.dice.roll()
+
+                # Check the tile one step in the chosen direction
+                dx, dy = direction.value
+                next_step_pos = (cat.position[0] + dx, cat.position[1] + dy)
+                
+                # A "good" move is one that exists and doesn't increase the distance to the border.
+                if self.board.get_tile(next_step_pos) and self.board.get_distance_to_border(next_step_pos) < initial_dist_to_border:
+                    logging.info(f"{cat.name} chose a good patrol route towards the border after {i+1} tries.")
+                    chosen_direction = direction
+                    chosen_steps = steps
+                    break # Found a good move, exit the retry loop
+
+                logging.debug(f"Patrol reroll {i+1}/{max_retries}: Move {direction.name} was not towards the border.")
+
+        # --- Execute the chosen move ---
+        if chosen_direction and chosen_steps:
+            self.execute_border_patrol_move(cat, chosen_direction, chosen_steps)
+        else:
+            logging.info(f"{cat.name} could not find a good patrol route after {GameConfig.MAX_PATROL_REROLLS} tries and gives up the turn.")
 
     def execute_border_patrol_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], List[Tile]]:
         """

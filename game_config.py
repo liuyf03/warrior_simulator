@@ -13,8 +13,9 @@ class GameConfig:
     NUM_INITIAL_WARRIORS_PER_CLAN: int = 2
     NUM_INITIAL_APPRENTICES_PER_CLAN: int = 2
     NUM_CATS_PER_CLAN: int = (
-        1 + NUM_INITIAL_WARRIORS_PER_CLAN + NUM_INITIAL_APPRENTICES_PER_CLAN
-    )  # Total cats per clan at game start
+        NUM_INITIAL_WARRIORS_PER_CLAN + NUM_INITIAL_APPRENTICES_PER_CLAN + 1
+      )   # +1 for leader
+    MAX_PATROL_REROLLS: int = 3  # Max retries for a patrol to find a good move
 
     # Point values for winning a fight based on rank
     SCORE_MAP = {

@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from enums import ClanName, Rank, Direction, TileType, CombatMove
 from game_config import GameConfig
@@ -43,7 +43,7 @@ class TestBorderPatrol(unittest.TestCase):
         self.engine.clans[ClanName.THUNDERCLAN] = self.mock_thunderclan
         self.engine.clans[ClanName.RIVERCLAN] = self.mock_riverclan
 
-    def tearDown(self):
+    def tearDown(self): 
         """This method runs after each test to clean up."""
         GameConfig.BORDER_WIDTH = self.original_border_width
         GameConfig.HUNTING_GROUND_SIZE = self.original_hunting_size
@@ -103,6 +103,62 @@ class TestBorderPatrol(unittest.TestCase):
         # ASSERTIONS
         last_pos_before_enemy_territory = (1,5)
         self.assertEqual(final_pos, last_pos_before_enemy_territory)
+
+    # --- Tests for execute_border_patrol wrapper ---
+
+    @patch('game_engine.GameEngine.execute_border_patrol_move')
+    @patch('game_mechanics.Dice.roll')
+    @patch('game_mechanics.Spinner.spin')
+    def test_patrol_from_border_moves_immediately(self, mock_spin, mock_roll, mock_execute_move):
+        """Tests that a cat on the border moves on the first roll."""
+        # ARRANGE
+        mock_spin.return_value = Direction.S
+        mock_roll.return_value = 4
+        cat = MockCat("Lionheart", ClanName.THUNDERCLAN, position=(0, 5)) # On the border
+
+        # ACT
+        self.engine.execute_border_patrol(cat)
+
+        # ASSERT
+        mock_spin.assert_called_once()
+        mock_roll.assert_called_once()
+        mock_execute_move.assert_called_once_with(cat, Direction.S, 4)
+
+    @patch('game_engine.GameEngine.execute_border_patrol_move')
+    @patch('game_mechanics.Dice.roll')
+    @patch('game_mechanics.Spinner.spin')
+    def test_patrol_rerolls_to_find_good_move(self, mock_spin, mock_roll, mock_execute_move):
+        """Tests that a cat in territory re-rolls a bad move to find a good one."""
+        # ARRANGE
+        # First spin is 'W' (bad), second is 'E' (good)
+        mock_spin.side_effect = [Direction.W, Direction.E]
+        mock_roll.return_value = 3
+        cat = MockCat("Tigerclaw", ClanName.THUNDERCLAN, position=(-4, 5)) # In territory
+
+        # ACT
+        self.engine.execute_border_patrol(cat)
+
+        # ASSERT
+        self.assertEqual(mock_spin.call_count, 2, "Should have spun twice to find a good move.")
+        mock_execute_move.assert_called_once_with(cat, Direction.E, 3)
+
+    @patch('game_engine.GameEngine.execute_border_patrol_move')
+    @patch('game_mechanics.Dice.roll')
+    @patch('game_mechanics.Spinner.spin')
+    def test_patrol_gives_up_after_max_rerolls(self, mock_spin, mock_roll, mock_execute_move):
+        """Tests that a cat gives up its turn if no good move is found."""
+        # ARRANGE
+        # All spins are 'W', which is always a bad move from this position
+        mock_spin.return_value = Direction.W
+        mock_roll.return_value = 2
+        cat = MockCat("Darkstripe", ClanName.THUNDERCLAN, position=(-4, 5)) # In territory
+
+        # ACT
+        self.engine.execute_border_patrol(cat)
+
+        # ASSERT
+        self.assertEqual(mock_spin.call_count, GameConfig.MAX_PATROL_REROLLS)
+        mock_execute_move.assert_not_called() # The move function should never be executed
 
     @unittest.mock.patch('combat_system.CombatSystem.calculate_fight_results')
     @unittest.mock.patch('deck.Deck.draw')

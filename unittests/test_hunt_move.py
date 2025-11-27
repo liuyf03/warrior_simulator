@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from enums import ClanName, Rank, Direction, TileType
 from game_config import GameConfig
@@ -40,6 +40,11 @@ class TestHuntMove(unittest.TestCase):
         self.original_hunting_size = GameConfig.HUNTING_GROUND_SIZE
         GameConfig.BORDER_WIDTH = 3
         GameConfig.HUNTING_GROUND_SIZE = 6
+
+        # Mock the prey population to control test conditions.
+        self.patcher = patch.object(GameEngine, '_populate_initial_prey')
+        self.mock_prey_init = self.patcher.start()
+        # Create the engine (it uses the active patch)
         self.engine = GameEngine()
         self.mock_thunderclan = MockClan(ClanName.THUNDERCLAN)
         self.engine.clans[ClanName.THUNDERCLAN] = self.mock_thunderclan
@@ -48,6 +53,8 @@ class TestHuntMove(unittest.TestCase):
         """This method runs after each test to clean up."""
         GameConfig.BORDER_WIDTH = self.original_border_width
         GameConfig.HUNTING_GROUND_SIZE = self.original_hunting_size
+        # Stop the patcher after every test
+        self.patcher.stop()
 
     def test_execute_hunt_move_success_and_catch_prey(self):
         """
@@ -58,9 +65,8 @@ class TestHuntMove(unittest.TestCase):
         start_pos = (-5, 5)
         cat = MockCat("Lionheart", ClanName.THUNDERCLAN, start_pos)
 
-        # Place prey on a tile in the cat's path
-        prey_pos = (-5, 6)
-        prey_tile = self.engine.board.get_tile(prey_pos)
+        # Manually place prey for this test, since auto-population is mocked.
+        prey_tile = self.engine.board.get_tile((-5, 6))
         self.assertIsNotNone(prey_tile)
         prey_tile.prey_count = 2
 
@@ -72,14 +78,8 @@ class TestHuntMove(unittest.TestCase):
         expected_pos = (-5, 7)
         self.assertEqual(final_pos, expected_pos, "Cat should end up at the new position.")
         cat.move.assert_called_once_with(expected_pos)
-
-        # The cat should have caught the prey
         self.assertEqual(prey_caught, 2, "Should have caught 2 prey.")
-        
-        # The prey should be removed from the tile
         self.assertEqual(prey_tile.prey_count, 0, "Prey should be removed from the tile after being caught.")
-
-        # The clan's add_prey method should have been called
         self.mock_thunderclan.add_prey.assert_called_once_with(2)
 
     def test_execute_hunt_move_stops_at_border(self):
@@ -99,6 +99,24 @@ class TestHuntMove(unittest.TestCase):
         self.assertEqual(final_pos, expected_pos)
         cat.move.assert_called_once_with(expected_pos)
         self.assertEqual(prey_caught, 0)
+
+    @patch('game_engine.GameEngine.execute_hunt_move')
+    @patch('game_mechanics.Dice.roll')
+    @patch('game_mechanics.Spinner.spin')
+    def test_execute_hunt_wrapper(self, mock_spin, mock_roll, mock_execute_move):
+        """Tests that the execute_hunt wrapper correctly calls its dependencies."""
+        # ARRANGE
+        mock_spin.return_value = Direction.N
+        mock_roll.return_value = 5
+        cat = MockCat("Lionheart", ClanName.THUNDERCLAN, position=(-5, 5))
+
+        # ACT
+        self.engine.execute_hunt(cat)
+
+        # ASSERT
+        mock_spin.assert_called_once()
+        mock_roll.assert_called_once()
+        mock_execute_move.assert_called_once_with(cat, Direction.N, 5)
 
 if __name__ == '__main__':
     unittest.main()
