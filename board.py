@@ -114,7 +114,7 @@ class Board:
     #             valid_neighbors.append(new_pos)
     #     return valid_neighbors
 
-    def trace_path(self, start_pos: Tuple[int, int], direction: Direction, steps: int, can_enter_func) -> Tuple[Tuple[int, int], List[Tile]]:
+    def trace_path(self, start_pos: Tuple[int, int], direction: Direction, steps: int, can_enter_func, stop_cond_func=None) -> Tuple[Tuple[int, int], List[Tile]]:
         """
         Simulates a move step-by-step and returns the final position and path taken.
         
@@ -124,6 +124,8 @@ class Board:
             steps: The maximum number of tiles to move (e.g., from a dice roll).
             can_enter_func: A function that takes a Tile object and returns True if a cat
                             is allowed to step onto it based on game rules.
+            stop_cond_func: An optional function that takes a position tuple and returns
+                            True if the movement should stop after reaching that tile.
                             
         Returns:
             A tuple containing:
@@ -146,6 +148,10 @@ class Board:
             current_pos = next_pos
             visited_tiles.append(tile)
 
+            # Check post-move stopping condition
+            if stop_cond_func and stop_cond_func(current_pos):
+                break
+
         return current_pos, visited_tiles
 
     def get_territory_of_position(self, position: Tuple[int, int]) -> Optional[ClanName]:
@@ -161,3 +167,33 @@ class Board:
             elif tile.type == TileType.WIND_TERRITORY:
                 return ClanName.WINDCLAN
         return None
+
+    def get_distance_to_border(self, pos: Tuple[int, int]) -> int:
+        """
+        Calculates Chebyshev distance from pos to the nearest Border tile.
+        Returns 0 if the tile is on the border or does not exist.
+        """
+        tile = self.get_tile(pos)
+        if not tile or tile.type == TileType.BORDER:
+            return 0
+
+        x, y = pos
+            
+        # Border Geometry (Union of two rectangles)
+        half_m = GameConfig.border_half_width()
+        extent = GameConfig.border_extent()
+        
+        # Distance to the vertical border strip
+        # This is the Chebyshev distance from (x,y) to the rectangle defined by
+        # x in [-half_m, half_m] and y in [-extent, extent].
+        dx_v = max(-half_m - x, 0, x - half_m)
+        dy_v = max(-extent - y, 0, y - extent) # This is usually 0 for valid tiles
+        dist_v = max(dx_v, dy_v)
+        
+        # Distance to the horizontal border strip
+        dy_h = max(-half_m - y, 0, y - half_m)
+        dx_h = max(-extent - x, 0, x - extent) # This is usually 0 for valid tiles
+        dist_h = max(dx_h, dy_h)
+        
+        # The distance to the border area is the minimum of the distances to the two strips.
+        return min(dist_v, dist_h)

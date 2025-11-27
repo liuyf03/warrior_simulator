@@ -14,7 +14,6 @@ class MockCat:
         self.name = name
         self.clan_id = clan_id
         self.position = position
-        # The move method is a MagicMock so we can track if it's called.
         self.move = MagicMock()
 
     def __repr__(self):
@@ -25,38 +24,28 @@ class MockClan:
     def __init__(self, name):
         self.name = name
         self.prey_pile = 0
-        # The add_prey method is a MagicMock to track calls.
         self.add_prey = MagicMock(side_effect=self._add_prey)
 
     def _add_prey(self, amount):
-        """Simulates the side effect of adding prey."""
         self.prey_pile += amount
 
-# --- Test Suite ---
+# --- Test Suite for Hunt Moves ---
 
-class TestGameEngine(unittest.TestCase):
-    """Test suite for the GameEngine class."""
+class TestHuntMove(unittest.TestCase):
+    """Test suite for the GameEngine's execute_hunt_move method."""
 
     def setUp(self):
         """This method runs before each test."""
-        # Store original config values to restore them later
         self.original_m = GameConfig.M
         self.original_n = GameConfig.N
-
-        # Set specific, predictable values for this test suite
         GameConfig.M = 3
         GameConfig.N = 6
-
-        # Now initialize the engine. It will build its board using our test values.
         self.engine = GameEngine()
-
-        # Replace the real clans with our mock clans for this test
         self.mock_thunderclan = MockClan(ClanName.THUNDERCLAN)
         self.engine.clans[ClanName.THUNDERCLAN] = self.mock_thunderclan
 
     def tearDown(self):
         """This method runs after each test to clean up."""
-        # Restore the original GameConfig values
         GameConfig.M = self.original_m
         GameConfig.N = self.original_n
 
@@ -65,23 +54,21 @@ class TestGameEngine(unittest.TestCase):
         Tests a successful hunt where a cat moves and catches prey
         without hitting a border.
         """
-        # 1. SETUP
-        # Place a cat in ThunderClan territory
+        # SETUP
         start_pos = (-5, 5)
         cat = MockCat("Lionheart", ClanName.THUNDERCLAN, start_pos)
 
         # Place prey on a tile in the cat's path
         prey_pos = (-5, 6)
         prey_tile = self.engine.board.get_tile(prey_pos)
-        self.assertIsNotNone(prey_tile, "Prey tile should exist on the board")
+        self.assertIsNotNone(prey_tile)
         prey_tile.prey_count = 2
 
-        # 2. ACTION
+        # ACTION
         # Execute a hunt move of 2 steps North
         final_pos, prey_caught = self.engine.execute_hunt_move(cat, Direction.N, 2)
 
-        # 3. ASSERTIONS
-        # The cat should move 3 steps, as nothing is blocking it
+        # ASSERTIONS
         expected_pos = (-5, 7)
         self.assertEqual(final_pos, expected_pos, "Cat should end up at the new position.")
         cat.move.assert_called_once_with(expected_pos)
@@ -97,25 +84,21 @@ class TestGameEngine(unittest.TestCase):
 
     def test_execute_hunt_move_stops_at_border(self):
         """
-        Tests that a hunting cat correctly stops before entering a BORDER tile,
-        even if it has more steps to move.
+        Tests that a hunting cat correctly stops before entering a BORDER tile.
         """
-        # 1. SETUP
-        # Place a cat a few steps away from the border in ThunderClan territory.
-        # The border starts at x = -1, so this position is 2 steps away.
+        # SETUP
         start_pos = (-3, 5)
         cat = MockCat("Tigerclaw", ClanName.THUNDERCLAN, start_pos)
 
-        # 2. ACTION
-        # Try to move 5 steps East, which would cross the border
+        # ACTION
         final_pos, prey_caught = self.engine.execute_hunt_move(cat, Direction.E, 5)
 
-        # 3. ASSERTIONS
+        # ASSERTIONS
         # The cat should move 1 step and stop at the last valid hunting tile before the border.
         expected_pos = (-2, 5)
-        self.assertEqual(final_pos, expected_pos, "Cat should stop at the tile just before the border.")
+        self.assertEqual(final_pos, expected_pos)
         cat.move.assert_called_once_with(expected_pos)
-        self.assertEqual(prey_caught, 0, "No prey should be caught.")
+        self.assertEqual(prey_caught, 0)
 
 if __name__ == '__main__':
     unittest.main()
