@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 from enums import ClanName, Rank, Direction, TileType, CombatMove
 from game_config import GameConfig
 from game_engine import GameEngine
+from cat import Cat
+from clan import Clan
 
 # --- Mock Classes ---
 
@@ -11,7 +13,7 @@ class MockCat:
     """A mock Cat class for testing the GameEngine."""
     def __init__(self, name, clan_id, position):
         self.name = name
-        self.clan_id = clan_id
+        self.clan_id = clan_id 
         self.position = position
         self.move = MagicMock()
 
@@ -21,7 +23,7 @@ class MockCat:
 class MockClan:
     """A mock Clan class for testing."""
     def __init__(self, name):
-        self.name = name
+        self.name = name 
     def __repr__(self):
         return f"MockClan(name='{self.name}')"
 
@@ -161,14 +163,19 @@ class TestBorderPatrol(unittest.TestCase):
         mock_execute_move.assert_not_called() # The move function should never be executed
 
     @unittest.mock.patch('combat_system.CombatSystem.calculate_fight_results')
+    @unittest.mock.patch('game_engine.GameEngine._reward_winning_clan')
+    @unittest.mock.patch('game_engine.GameEngine._mark_wounded_cats')
     @unittest.mock.patch('deck.Deck.draw')
-    def test_trigger_clan_combat_handles_draw_and_rerun(self, mock_draw, mock_calculate_results):
+    def test_trigger_clan_combat_handles_draw_and_rerun(self, mock_draw, mock_mark_wounded_cats, mock_reward_winning_clan, mock_calculate_results):
         """
         Tests that _trigger_clan_combat correctly re-runs a fight on a draw.
         """
         # SETUP
         # 1. Mock the combat results: First round is a draw (0, 0), second round is a win for Clan A (5, 0).
-        mock_calculate_results.side_effect = [(0, 0), (5, 0)]
+        mock_calculate_results.side_effect = [
+            (0, 0, [0] * GameConfig.NUM_CATS_PER_CLAN),
+            (5, 0, [1] + [0] * (GameConfig.NUM_CATS_PER_CLAN-1))
+        ]
 
         # 2. Mock the deck to return predictable cards.
         mock_draw.return_value = CombatMove.CLAW_SCRATCH
@@ -194,6 +201,77 @@ class TestBorderPatrol(unittest.TestCase):
         # ASSERTIONS
         # Assert that the fight calculation was called twice (once for the draw, once for the win).
         self.assertEqual(mock_calculate_results.call_count, 2, "Should have run combat twice due to the initial draw.")
+
+    # --- Tests for Combat Resolution ---
+
+    def test_mark_wounded_cats(self):
+        """Tests that cats are correctly marked as wounded based on slot results."""
+        # ARRANGE
+        # Using real Cat objects to check their state
+        cat_a1 = Cat("CatA1", ClanName.THUNDERCLAN, Rank.WARRIOR, (0,0))
+        cat_a2 = Cat("CatA2", ClanName.THUNDERCLAN, Rank.WARRIOR, (0,0))
+        cat_b1 = Cat("CatB1", ClanName.RIVERCLAN, Rank.WARRIOR, (0,0))
+        cat_b2 = Cat("CatB2", ClanName.RIVERCLAN, Rank.WARRIOR, (0,0))
+
+        cats_a = [cat_a1, cat_a2]
+        cats_b = [cat_b1, cat_b2]
+        # Clan A wins slot 1, Clan B wins slot 2
+        slot_results = [1, -1]
+
+        # ACT
+        self.engine._mark_wounded_cats(cats_a, cats_b, slot_results)
+
+        # ASSERT
+        self.assertFalse(cat_a1.is_wounded, "Cat A1 won and should be healthy.")
+        self.assertTrue(cat_a2.is_wounded, "Cat A2 lost and should be wounded.")
+        self.assertTrue(cat_b1.is_wounded, "Cat B1 lost and should be wounded.")
+        self.assertFalse(cat_b2.is_wounded, "Cat B2 won and should be healthy.")
+
+    def test_reward_winning_clan_promotes_apprentice(self):
+        """Tests that the first reward is promoting an apprentice."""
+        # ARRANGE
+        winning_clan = Clan(ClanName.THUNDERCLAN, (0,0))
+        apprentice = Cat("Testpaw", ClanName.THUNDERCLAN, Rank.APPRENTICE, (0,0))
+        winning_clan.add_cat(apprentice)
+
+        # ACT
+        self.engine._reward_winning_clan(winning_clan)
+
+        # ASSERT
+        self.assertEqual(apprentice.rank, Rank.WARRIOR, "Apprentice should be promoted to Warrior.")
+
+    def test_reward_winning_clan_promotes_to_deputy(self):
+        """Tests promoting a warrior to deputy if no apprentices exist."""
+        # ARRANGE
+        winning_clan = Clan(ClanName.THUNDERCLAN, (0,0))
+        warrior = Cat("Testfur", ClanName.THUNDERCLAN, Rank.WARRIOR, (0,0))
+        winning_clan.add_cat(warrior) # Clan has no apprentices and no deputy
+
+        # ACT
+        self.engine._reward_winning_clan(winning_clan)
+
+        # ASSERT
+        self.assertEqual(warrior.rank, Rank.DEPUTY, "Warrior should be promoted to Deputy.")
+
+    @patch('game_engine.GameEngine.execute_prey_replenish')
+    def test_reward_winning_clan_replenishes_prey(self, mock_replenish):
+        """
+        Tests replenishing prey if no promotions are possible.
+        """
+        # ARRANGE
+        winning_clan = Clan(ClanName.THUNDERCLAN, (0,0))
+        leader = Cat("Teststar", ClanName.THUNDERCLAN, Rank.LEADER, (0,0))
+        deputy = Cat("Testpelt", ClanName.THUNDERCLAN, Rank.DEPUTY, (0,0))
+        winning_clan.add_cat(leader)
+        winning_clan.add_cat(deputy) # Clan has a leader and deputy, no apprentices
+
+        # ACT
+        self.engine._reward_winning_clan(winning_clan)
+
+        # ASSERT
+        # Check that the prey replenish function was called
+        mock_replenish.assert_called_once_with(winning_clan, count=1)
+
 
 if __name__ == '__main__':
     unittest.main()

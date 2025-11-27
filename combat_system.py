@@ -28,12 +28,17 @@ class CombatSystem:
         return 0
 
     @staticmethod
-    def calculate_fight_results(clan_a_cards: List[Optional[CombatMove]], clan_b_cards: List[Optional[CombatMove]], clan_a_ranks: List[Optional[Rank]], clan_b_ranks: List[Optional[Rank]]) -> Tuple[int, int]:
+    def calculate_fight_results(clan_a_cards: List[Optional[CombatMove]], clan_b_cards: List[Optional[CombatMove]], clan_a_ranks: List[Optional[Rank]], clan_b_ranks: List[Optional[Rank]]) -> Tuple[int, int, List[int]]:
         """
-        Compares combat slots up to the configured squad size and returns the total scores.
+        Compares combat slots and returns total scores and individual slot results.
+        
+        Returns:
+            A tuple containing (score_a, score_b, slot_results).
+            slot_results is a list of integers: 1 for A win, -1 for B win, 0 for tie.
         """
         score_a = 0
         score_b = 0
+        slot_results: List[int] = [0] * GameConfig.NUM_CATS_PER_CLAN
         
         # Loop up to the configured squad size
         for i in range(GameConfig.NUM_CATS_PER_CLAN):
@@ -43,19 +48,17 @@ class CombatSystem:
             # Handle cases where one or both cats are wounded (card is None)
             if card_a is None and card_b is not None and rank_b is not None:
                 score_b += GameConfig.SCORE_MAP.get(rank_b, 0)
-                continue
+                slot_results[i] = -1
             elif card_b is None and card_a is not None and rank_a is not None:
                 score_a += GameConfig.SCORE_MAP.get(rank_a, 0)
-                continue
-            elif card_a is None or card_b is None:
-                continue
-
-            # Compare cards to find the winner of the slot
-            result = CombatSystem.get_card_winner(card_a, card_b)
+                slot_results[i] = 1
+            elif card_a is not None and card_b is not None:
+                # Both cats are healthy, compare cards
+                slot_results[i] = CombatSystem.get_card_winner(card_a, card_b)
+                if slot_results[i] == 1 and rank_a is not None:
+                    score_a += GameConfig.SCORE_MAP.get(rank_a, 0)
+                elif slot_results[i] == -1 and rank_b is not None:
+                    score_b += GameConfig.SCORE_MAP.get(rank_b, 0)
             
-            if result == 1 and rank_a is not None:
-                score_a += GameConfig.SCORE_MAP.get(rank_a, 0)
-            elif result == -1 and rank_b is not None:
-                score_b += GameConfig.SCORE_MAP.get(rank_b, 0)
+        return score_a, score_b, slot_results
                 
-        return score_a, score_b

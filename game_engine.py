@@ -263,7 +263,7 @@ class GameEngine:
             logging.debug(f"Round {i+1} draws for {clan_b.name}: {[c.value if c else 'N/A' for c in cards_b]}")
 
             # 3. Use the CombatSystem to calculate the results
-            score_a, score_b = CombatSystem.calculate_fight_results(cards_a, cards_b, ranks_a, ranks_b)
+            score_a, score_b, slot_results = CombatSystem.calculate_fight_results(cards_a, cards_b, ranks_a, ranks_b)
 
             logging.info(f"Combat Round {i+1} Score: {clan_a.name} [{score_a}] - [{score_b}] {clan_b.name}")
 
@@ -272,15 +272,69 @@ class GameEngine:
             self.combat_deck.discard(all_used_cards)
 
             # 5. Determine winner or if a re-fight is needed
-            if score_a > score_b:
-                logging.info(f"{clan_a.name} wins the skirmish!")
-                break # A winner is found, exit the loop
-            elif score_b > score_a:
-                logging.info(f"{clan_b.name} wins the skirmish!")
-                break # A winner is found, exit the loop
-            else:
+            if score_a == score_b:
                 # This round is a draw
                 if i < max_rounds - 1:
                     logging.info("The round is a draw! Another round of fighting begins...")
                 else:
                     logging.info("The skirmish ends in a final draw after 3 rounds!")
+                continue # Proceed to next round or end
+            
+            # Resolve winning cat rewards
+            if score_a > score_b:
+                logging.info(f"{clan_a.name} wins the skirmish!")
+                self._reward_winning_clan(clan_a)
+            else:
+                logging.info(f"{clan_b.name} wins the skirmish!")
+                self._reward_winning_clan(clan_b)
+
+            # Mark wounded cats based on slot results
+            self._mark_wounded_cats(cats_a, cats_b, slot_results)
+            break # A winner is found, exit the loop
+                
+
+    def _mark_wounded_cats(self, cats_a: List[Cat | None], cats_b: List[Cat | None], slot_results: List[int]):
+        """
+        Marks cats as wounded based on the combat slot results.
+        """
+        for i, result in enumerate(slot_results):
+            if result == 1: # Clan A's cat won the bout
+                losing_cat = cats_b[i]
+                if losing_cat:
+                    losing_cat.sustain_injury()
+                    logging.info(f"  -> {losing_cat.name} from Clan B was wounded in battle.")
+            elif result == -1: # Clan B's cat won the bout
+                losing_cat = cats_a[i]
+                if losing_cat:
+                    losing_cat.sustain_injury()
+                    logging.info(f"  -> {losing_cat.name} from Clan A was wounded in battle.")
+            else: # It was a tie or both were wounded
+                continue
+
+
+    def _reward_winning_clan(self, winning_clan: Clan):
+        """
+        Grants rewards to the winning clan.
+        """
+        logging.info(f"Resolving combat: {winning_clan.name} is victorious.")
+
+        # Reward 1: Promote an Apprentice if possible
+        apprentices = [cat for cat in winning_clan.cats if cat.rank == Rank.APPRENTICE]
+        if apprentices:
+            apprentice_to_promote = apprentices[0]
+            apprentice_to_promote.promote()
+            logging.info(f"  As a reward for victory, {apprentice_to_promote.name} has been promoted to a Warrior!")
+            return
+
+        # Reward 2: If no apprentices, promote a Warrior to Deputy if needed
+        if not winning_clan.has_deputy():
+            warriors = [cat for cat in winning_clan.cats if cat.rank == Rank.WARRIOR]
+            if warriors:
+                warrior_to_promote = warriors[0]
+                warrior_to_promote.promote()
+                logging.info(f"  As a reward for victory, {warrior_to_promote.name} has been promoted to Deputy!")
+                return
+
+        # Reward 3: If no promotions are possible, replenish prey
+        logging.info(f"  As a reward for victory, the prey has been replenished in {winning_clan.name}'s territory.")
+        self.execute_prey_replenish(winning_clan, count=1)

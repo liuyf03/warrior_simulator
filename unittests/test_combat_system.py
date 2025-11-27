@@ -35,13 +35,17 @@ class TestCombatSystem(unittest.TestCase):
         # Clan A wins slot 1 (5 pts), Clan B wins slot 2 (3 pts), Clan A wins slot 3 (3 pts)
         clan_a_cards = [CombatMove.CLAW_SCRATCH, CombatMove.KICK, CombatMove.BITE, None, None]
         clan_b_cards = [CombatMove.BITE, CombatMove.LEAP, CombatMove.KICK, None, None]
-
-        score_a, score_b = CombatSystem.calculate_fight_results(clan_a_cards, clan_b_cards, clan_a_ranks, clan_b_ranks)
-
+        
+        # ACT
+        score_a, score_b, slot_results = CombatSystem.calculate_fight_results(clan_a_cards, clan_b_cards, clan_a_ranks, clan_b_ranks)
+        
+        # ASSERT
         expected_score_a = 5 + 3   # Leader wins + Warrior wins
         expected_score_b = 3       # WARRIOR wins
+        expected_slot_results = [1, -1, 1, 0, 0] # A wins, B wins, A wins, tie, tie
         self.assertEqual(score_a, expected_score_a)
         self.assertEqual(score_b, expected_score_b)
+        self.assertEqual(slot_results, expected_slot_results)
 
     def test_calculate_fight_results_with_wounded_cat_and_ties(self):
         """Tests that a wounded cat (None card) automatically loses the slot."""
@@ -54,13 +58,17 @@ class TestCombatSystem(unittest.TestCase):
         # Slot 3 is a tie 
         clan_a_cards = [CombatMove.CLAW_SCRATCH, CombatMove.KICK, CombatMove.KICK, CombatMove.LEAP, CombatMove.KICK]
         clan_b_cards = [CombatMove.BITE, None, CombatMove.KICK, CombatMove.KICK, CombatMove.BITE]
-        score_a, score_b = CombatSystem.calculate_fight_results(clan_a_cards, clan_b_cards,  clan_a_ranks, clan_b_ranks)
-
-        # Clan A wins slot 1 (5 pts). Clan B wins slot 2 automatically (4 pts) and slot 3 (3 pts).
+        
+        # ACT
+        score_a, score_b, slot_results = CombatSystem.calculate_fight_results(clan_a_cards, clan_b_cards,  clan_a_ranks, clan_b_ranks)
+        
+        # ASSERT
         expected_score_a = 5 + 4 + 1
         expected_score_b = 1
+        expected_slot_results = [1, 1, 0, 1, -1] # A wins, A wins (wounded), tie, A wins, B wins
         self.assertEqual(score_a, expected_score_a)
         self.assertEqual(score_b, expected_score_b)
+        self.assertEqual(slot_results, expected_slot_results)
 
     def test_calculate_fight_results_empty_slots(self):
         """Tests a scenario where both cats in a slot are wounded."""
@@ -71,14 +79,18 @@ class TestCombatSystem(unittest.TestCase):
         # Slot 2 has both cats wounded.
         clan_a_cards = [CombatMove.CLAW_SCRATCH, None, CombatMove.KICK, None, None]
         clan_b_cards = [CombatMove.BITE, None, CombatMove.LEAP, None, None]
-
-        score_a, score_b = CombatSystem.calculate_fight_results(clan_a_cards, clan_b_cards, clan_a_ranks, clan_b_ranks)
-
+        
+        # ACT
+        score_a, score_b, slot_results = CombatSystem.calculate_fight_results(clan_a_cards, clan_b_cards, clan_a_ranks, clan_b_ranks)
+        
+        # ASSERT
         # Clan A wins slot 1 (5 pts). Slot 2 is empty. Clan B wins slot 3 (3 pts).
         expected_score_a = 5
         expected_score_b = 3
+        expected_slot_results = [1, 0, -1, 0, 0] # A wins, tie (both wounded), B wins, tie, tie
         self.assertEqual(score_a, expected_score_a)
         self.assertEqual(score_b, expected_score_b)
+        self.assertEqual(slot_results, expected_slot_results)
 
 
 if __name__ == '__main__':
