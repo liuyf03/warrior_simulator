@@ -36,18 +36,18 @@ class TestHuntMove(unittest.TestCase):
 
     def setUp(self):
         """This method runs before each test."""
-        self.original_m = GameConfig.M
-        self.original_n = GameConfig.N
-        GameConfig.M = 3
-        GameConfig.N = 6
+        self.original_border_width = GameConfig.BORDER_WIDTH
+        self.original_hunting_size = GameConfig.HUNTING_GROUND_SIZE
+        GameConfig.BORDER_WIDTH = 3
+        GameConfig.HUNTING_GROUND_SIZE = 6
         self.engine = GameEngine()
         self.mock_thunderclan = MockClan(ClanName.THUNDERCLAN)
         self.engine.clans[ClanName.THUNDERCLAN] = self.mock_thunderclan
 
     def tearDown(self):
         """This method runs after each test to clean up."""
-        GameConfig.M = self.original_m
-        GameConfig.N = self.original_n
+        GameConfig.BORDER_WIDTH = self.original_border_width
+        GameConfig.HUNTING_GROUND_SIZE = self.original_hunting_size
 
     def test_execute_hunt_move_success_and_catch_prey(self):
         """

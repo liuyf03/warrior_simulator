@@ -68,6 +68,30 @@ class Clan:
         """Checks if the Clan currently has a cat with the rank of Deputy."""
         return any(cat.rank == Rank.DEPUTY for cat in self.cats)
 
+    def get_combat_squad(self) -> Tuple[List[Cat | None], List[Rank | None]]:
+        """
+        Assembles a 5-cat squad for combat based on rank.
+        Sorts all cats by rank (Leader > Deputy > Warrior > Apprentice) and
+        then by health (healthy > wounded).
+        Returns a tuple of the cat list and the rank list for the slots.
+        """
+        # Define the desired order of ranks for sorting.
+        rank_order = {Rank.LEADER: 0, Rank.DEPUTY: 1, Rank.WARRIOR: 2, Rank.APPRENTICE: 3}
+
+        # 1. Sort all cats in the clan.
+        # The key sorts by rank first, then by health (False/healthy comes before True/wounded).
+        squad_cats = sorted(self.cats, key=lambda cat: (rank_order.get(cat.rank, 99), cat.is_wounded))
+
+        # 2. Populate the final lists, nullifying wounded cats.
+        squad_ranks: List[Rank | None] = [None] * len(squad_cats)
+
+        for i, cat in enumerate(squad_cats):
+            squad_ranks[i] = cat.rank
+            if cat.is_wounded:
+                squad_cats[i] = None # Wounded cats can't fight, so their card slot is empty
+                
+        return squad_cats, squad_ranks
+
     def __repr__(self) -> str:
         """Provides a developer-friendly representation of the Clan."""
         return f"Clan(name='{self.name}', members={len(self.cats)}, prey={self.prey_pile})"

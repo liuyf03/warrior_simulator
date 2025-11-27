@@ -4,8 +4,10 @@ from typing import Tuple, Dict, List
 from board import Board
 from cat import Cat
 from clan import Clan
+from combat_system import CombatSystem
+from deck import Deck
 from game_config import GameConfig
-from enums import Direction, TileType, ClanName
+from enums import Direction, TileType, ClanName, CombatMove, Rank
 from tile import Tile
 
 class GameEngine:
@@ -17,15 +19,43 @@ class GameEngine:
         """Initializes the GameEngine."""
         self.board = Board()
         self.clans: Dict[ClanName, Clan] = {}
+        self.combat_deck = self._initialize_combat_deck()
         self._initialize_clans()
         logging.info("GameEngine initialized.")
+
+    def _initialize_combat_deck(self) -> Deck:
+        """Creates and shuffles the main combat card deck."""
+        logging.info("Initializing combat deck...")
+        card_copies = GameConfig.COMBAT_CARD_COPIES
+        all_cards = []
+        for move in CombatMove:
+            all_cards.extend([move] * card_copies)
+        return Deck(all_cards)
 
     def _initialize_clans(self):
         """Creates instances for each clan and stores them."""
         logging.info("Initializing all clans...")
         clan_camps = GameConfig.get_clan_camps()
         for clan_name, camp_pos in clan_camps.items():
-            self.clans[clan_name] = Clan(name=clan_name, camp_entrance=camp_pos)
+            # Create the clan
+            new_clan = Clan(name=clan_name, camp_entrance=camp_pos)
+
+            # --- Create and add cats to the clan ---
+            # 1. Leader (1 per clan)
+            leader_name = f"{clan_name.value}star" # e.g., ThunderClanstar
+            leader = Cat(name=leader_name, clan_id=clan_name, rank=Rank.LEADER, position=camp_pos)
+            new_clan.add_cat(leader)
+
+            # 2. Warriors
+            for i in range(GameConfig.NUM_INITIAL_WARRIORS_PER_CLAN):
+                new_clan.add_cat(Cat(name=f"Warrior {i+1}", clan_id=clan_name, rank=Rank.WARRIOR, position=camp_pos))
+
+            # 3. Apprentices
+            for i in range(GameConfig.NUM_INITIAL_APPRENTICES_PER_CLAN):
+                new_clan.add_cat(Cat(name=f"Apprentice {i+1}", clan_id=clan_name, rank=Rank.APPRENTICE, position=camp_pos))
+
+            # Store the populated clan in the engine
+            self.clans[clan_name] = new_clan
 
     def execute_hunt_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], int]:
         """
@@ -109,6 +139,55 @@ class GameEngine:
                 tile.paw_print = cat.clan_id
                 logging.debug(f"  -> {cat.name} left a scent marker on a highlighted tile at ({tile.x}, {tile.y}).")
 
-        # 4. No clan resources are updated directly from this move.
+        # 4. Post-Move Event Check
+        # Check if the patrol stopped because it found an enemy scent
+        final_tile = self.board.get_tile(final_pos)
+        if final_tile and final_tile.paw_print and final_tile.paw_print != cat.clan_id:
+            # A fight is triggered!
+            aggressor_clan = self.clans[cat.clan_id]
+            defender_clan = self.clans[final_tile.paw_print]
+            self._trigger_clan_combat(aggressor_clan, defender_clan)
 
         return final_pos, path_tiles
+
+    def _trigger_clan_combat(self, clan_a: Clan, clan_b: Clan):
+        """
+        Orchestrates a 5v5 combat between two clans.
+        """
+        logging.info(f"--- COMBAT! {clan_a.name} vs. {clan_b.name} ---")
+
+        # 1. Assemble the fighting cats from each clan
+        cats_a, ranks_a = clan_a.get_combat_squad()
+        cats_b, ranks_b = clan_b.get_combat_squad()
+        
+        max_rounds = 3
+        for i in range(max_rounds):
+            # 2. Draw combat cards for each clan
+            cards_a = [self.combat_deck.draw() if cat else None for cat in cats_a]
+            cards_b = [self.combat_deck.draw() if cat else None for cat in cats_b]
+
+            logging.debug(f"Round {i+1} draws for {clan_a.name}: {[c.value if c else 'N/A' for c in cards_a]}")
+            logging.debug(f"Round {i+1} draws for {clan_b.name}: {[c.value if c else 'N/A' for c in cards_b]}")
+
+            # 3. Use the CombatSystem to calculate the results
+            score_a, score_b = CombatSystem.calculate_fight_results(cards_a, cards_b, ranks_a, ranks_b)
+
+            logging.info(f"Combat Round {i+1} Score: {clan_a.name} [{score_a}] - [{score_b}] {clan_b.name}")
+
+            # 4. Discard all used cards
+            all_used_cards = [card for card in cards_a + cards_b if card is not None]
+            self.combat_deck.discard(all_used_cards)
+
+            # 5. Determine winner or if a re-fight is needed
+            if score_a > score_b:
+                logging.info(f"{clan_a.name} wins the skirmish!")
+                break # A winner is found, exit the loop
+            elif score_b > score_a:
+                logging.info(f"{clan_b.name} wins the skirmish!")
+                break # A winner is found, exit the loop
+            else:
+                # This round is a draw
+                if i < max_rounds - 1:
+                    logging.info("The round is a draw! Another round of fighting begins...")
+                else:
+                    logging.info("The skirmish ends in a final draw after 3 rounds!")

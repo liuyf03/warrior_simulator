@@ -22,7 +22,7 @@ class Board:
         """
         self.grid: dict[Tuple[int, int], Tile] = {}  # Map (x, y) -> Tile object
         self._initialize_board()
-        logging.info(f"Board initialized with N={GameConfig.N}, M={GameConfig.M}. Total tiles: {len(self.grid)}")
+        logging.info(f"Board initialized with HUNTING_GROUND_SIZE={GameConfig.HUNTING_GROUND_SIZE}, BORDER_WIDTH={GameConfig.BORDER_WIDTH}. Total tiles: {len(self.grid)}")
 
     def _initialize_board(self):
         """Generates all legal tiles based on N and M."""
@@ -59,8 +59,8 @@ class Board:
         Shadow: Bottom Left (Negative X, Negative Y)
         Wind: Bottom Right (Positive X, Negative Y)
         """
-        m = GameConfig.M
-        n = GameConfig.N
+        m = GameConfig.BORDER_WIDTH
+        n = GameConfig.HUNTING_GROUND_SIZE
         
         # Calculate start/end for Thunder (Base Quadrant)
         # Based on your coordinates:

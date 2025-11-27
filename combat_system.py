@@ -30,13 +30,13 @@ class CombatSystem:
     @staticmethod
     def calculate_fight_results(clan_a_cards: List[Optional[CombatMove]], clan_b_cards: List[Optional[CombatMove]], clan_a_ranks: List[Optional[Rank]], clan_b_ranks: List[Optional[Rank]]) -> Tuple[int, int]:
         """
-        Compares 5 combat slots and returns the total scores for each clan.
+        Compares combat slots up to the configured squad size and returns the total scores.
         """
         score_a = 0
         score_b = 0
         
-        # We assume lists are ordered by slot: [Leader, Deputy/Warrior, Warrior, Apprentice, Apprentice]
-        for i in range(5):
+        # Loop up to the configured squad size
+        for i in range(GameConfig.NUM_CATS_PER_CLAN):
             card_a, card_b = clan_a_cards[i], clan_b_cards[i]
             rank_a, rank_b = clan_a_ranks[i], clan_b_ranks[i]
             
