@@ -11,7 +11,7 @@ from combat_system import CombatSystem
 from deck import Deck
 from game_mechanics import Dice, Spinner
 from game_config import GameConfig
-from enums import Direction, TileType, ClanName, CombatMove, Rank, Season
+from enums import Direction, TileType, ClanName, CombatMove, Rank, Season, Activity
 from tile import Tile
 
 class GameEngine:
@@ -43,6 +43,21 @@ class GameEngine:
         logging.info(f"GameEngine initialized. It is {self.current_season.value} of turn {self.turn_count}.")
 
     # --- Turn Management ---
+    def play_full_turn(self):
+        """
+        Executes a full turn of the game, iterating through each clan's actions
+        and then advancing the season.
+        """
+        if self._check_game_over():
+            return
+
+        # Execute each clan's turn in order
+        for clan_name in list(ClanName):
+            clan = self.clans[clan_name]
+            self._execute_clan_turn(clan)
+
+        # Advance to the next turn/season
+        self._advance_turn()
 
     def _advance_turn(self):
         """
@@ -62,6 +77,52 @@ class GameEngine:
             logging.info("Game Over: Maximum number of turns reached.")
             return True
         return False
+    
+    def _execute_clan_turn(self, clan: Clan):
+        """
+        Executes the logic for a single clan's turn, from drawing an
+        activity card to dispatching actions.
+        """
+        logging.info(f"\n--- {clan.name}'s Turn ---")
+
+        # 1. Draw Activity Card
+        card = self.activity_deck.draw()
+        logging.info(f"  Drawn Activity Card with actions: {[a.value for a in card.actions]}")
+
+        # 2. Assign available warriors to actions
+        active_warriors = clan.get_active_warriors()
+        num_actions = len(active_warriors)
+        logging.info(f"  {clan.name} has {num_actions} active warriors available for duties.")
+
+        # 3. Execute Actions based on Warrior Count
+        actions_to_perform = card.actions[:num_actions]
+        for i, action_type in enumerate(actions_to_perform):
+            # TODO: Implement AI to intelligently assign action to cats based on position
+            cat_for_action = active_warriors[i]
+            self._dispatch_action(cat_for_action, action_type)
+
+        # 4. Discard Card
+        self.activity_deck.discard(card)
+
+        # 5. Leader's Prey Replenish Check
+        if self.current_season in [Season.NEW_LEAF, Season.GREEN_LEAF]:
+            logging.info(f"  {self.current_season.value} Bonus: Leader replenishes prey.")
+            self.execute_prey_replenish(clan, count=1)
+
+    def _dispatch_action(self, cat: Cat, action_type: Activity):
+        """Helper to map an Activity enum to an actual method call for a specific cat."""
+        logging.info(f"  Dispatching {cat.name} to perform: {action_type.value}")
+        if action_type == Activity.HUNT:
+            self.execute_hunt(cat)
+        elif action_type == Activity.PATROL:
+            self.execute_border_patrol(cat)
+        # TODO: Implement training logic
+        elif action_type == Activity.TRAIN_HUNT:
+            self.execute_hunt(cat)
+        elif action_type == Activity.TRAIN_PATROL:
+            self.execute_border_patrol(cat)
+        else:
+            logging.warning(f"  [Warning] Unknown or unimplemented action type: {action_type}")
 
     # --- Initialization Methods ---
 

@@ -47,6 +47,10 @@ class Clan:
         """Returns a list of all cats with the rank of Warrior or Deputy."""
         return [cat for cat in self.cats if cat.rank in (Rank.WARRIOR, Rank.DEPUTY)]
 
+    def get_active_warriors(self) -> List[Cat]:
+        """Returns a list of healthy (unwounded) cats with the rank of Warrior or Deputy."""
+        return [cat for cat in self.cats if cat.rank in (Rank.WARRIOR, Rank.DEPUTY) and not cat.is_wounded]
+
     def get_apprentices(self) -> List[Cat]:
         """Returns a list of all healthy (unwounded) apprentices."""
         return [cat for cat in self.cats if cat.rank == Rank.APPRENTICE and not cat.is_wounded]
