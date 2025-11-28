@@ -4,10 +4,6 @@ from typing import Optional, Tuple
 
 from enums import Rank, ClanName
 
-# A constant to represent the default position when a cat is healed.
-# This could be the entrance to the clan's camp.
-CAMP_ENTRANCE_COORDS = (0, 0)
-
 class Cat:
     """
     Represents a single cat in the game simulation.
@@ -25,14 +21,16 @@ class Cat:
             on the map. Is None if the cat is in the Medicine Den.
     """
 
-    def __init__(self, name: str, clan_id: ClanName, rank: Rank, position: Optional[Tuple[int, int]] = CAMP_ENTRANCE_COORDS):
+    def __init__(self, name: str, clan_id: ClanName, rank: Rank, position: Optional[Tuple[int, int]]):
         """Initializes a new Cat instance."""
         self.id: uuid.UUID = uuid.uuid4()
         self.name: str = name
         self.clan_id: ClanName = clan_id
         self.rank: Rank = rank
+        self.original_rank: Rank = rank # Store the initial rank for resets
         self.is_wounded: bool = False
         self.position: Optional[Tuple[int, int]] = position
+        self.wounded_turn_index: Optional[int] = None
 
     def log_state(self, debug: bool = False):
         """Prints the detailed state of the cat if debug mode is active."""
@@ -73,26 +71,28 @@ class Cat:
             logging.warning(f"{self.name} cannot be promoted from the rank of {self.rank}.")
             return False
 
-    def sustain_injury(self):
+    def sustain_injury(self, current_turn: int):
         """
         Inflicts an injury on the cat.
         The cat is moved to the Medicine Den (position becomes None).
         """
         self.is_wounded = True
+        self.wounded_turn_index = current_turn
         self.position = None  # Represents being in the Medicine Den
         logging.info(f"{self.name} has been wounded and is now in the Medicine Den.")
 
-    def heal(self):
+    def heal(self, camp_entrance: Tuple[int, int]):
         """
         Heals the cat from its injuries.
-        The cat is moved to the camp entrance.
+        The cat is moved to the provided camp entrance coordinates.
         """
         if not self.is_wounded:
             logging.info(f"{self.name} is not wounded.")
             return
 
         self.is_wounded = False
-        self.position = CAMP_ENTRANCE_COORDS
+        self.wounded_turn_index = None
+        self.position = camp_entrance
         logging.info(f"{self.name} has healed and returned to the camp entrance at {self.position}.")
 
     def __repr__(self) -> str:

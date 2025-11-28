@@ -19,6 +19,7 @@ class GameConfig:
     MAX_NUM_GAME_TURNS: int = 20 # Max number of turns before game ends
     NUM_ACTIVITY_CARDS_IN_DECK: int = 40  # Total activity cards in the deck
     ACTIVITY_SLOTS_PER_CARD: int = 4      # Number of activity slots on
+    WOUNDED_CATS_TURNS_TO_SKIP: int = 2   # Turns a cat stays wounded
 
     # Point values for winning a fight based on rank
     SCORE_MAP = {

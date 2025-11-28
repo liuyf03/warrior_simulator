@@ -37,6 +37,9 @@ class TestPreyReplenish(unittest.TestCase):
         slot_3_pos = self.engine.board.spawn_points[ClanName.THUNDERCLAN][3]
         tile_slot_1 = self.engine.board.get_tile(slot_1_pos)
         tile_slot_3 = self.engine.board.get_tile(slot_3_pos)
+        # Add initial prey to these tiles to verify increments.
+        tile_slot_1.prey_count = 1
+        tile_slot_3.prey_count = 1
 
         # 3. Verify the initial state (each slot starts with 1 prey).
         self.assertEqual(tile_slot_1.prey_count, 1, "Slot 1 should start with 1 prey.")

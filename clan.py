@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Tuple
 
 from enums import ClanName, Rank
+from game_config import GameConfig
 from cat import Cat
 
 class Clan:
@@ -25,13 +26,46 @@ class Clan:
         self.camp_entrance: Tuple[int, int] = camp_entrance
         logging.info(f"{self.name} has been established.")
 
-    def add_cat(self, cat: Cat):
-        """Adds a new cat to the clan, verifying it belongs."""
-        if cat.clan_id == self.name:
-            self.cats.append(cat)
-            logging.info(f"{cat.name} has joined {self.name}.")
-        else:
-            logging.warning(f"Attempted to add {cat.name} to {self.name}, but they belong to {cat.clan_id}.")
+    def _reset_clan_cats(self):
+        """Creates and adds the starting cats (Leader, Warriors, Apprentices) to the clan."""
+        # 1. Leader (1 per clan)
+        self.add_cat(name=f"{self.name.value}star", rank=Rank.LEADER)
+
+        # 2. Warriors
+        for i in range(GameConfig.NUM_INITIAL_WARRIORS_PER_CLAN):
+            self.add_cat(name=f"Warrior {i+1}", rank=Rank.WARRIOR)
+
+        # 3. Apprentices
+        for i in range(GameConfig.NUM_INITIAL_APPRENTICES_PER_CLAN):
+            self.add_cat(name=f"Apprentice {i+1}", rank=Rank.APPRENTICE)
+    
+    def add_cat(self, name: str, rank: Rank):
+        """Creates a new cat with the clan's properties and adds it."""
+        new_cat = Cat(name=name, clan_id=self.name, rank=rank, position=self.camp_entrance)
+        self.cats.append(new_cat)
+        logging.info(f"{new_cat.name} has joined {self.name}.")
+
+    def reset_clan_state(self):
+        """Resets the clan's prey pile and the state of all its cats for a new game."""
+        logging.info(f"Resetting state for {self.name}...")
+        self.prey_pile = 0
+
+        self._reset_clan_cats()
+        for cat in self.cats:
+            cat.is_wounded = False
+            cat.rank = cat.original_rank # Revert any promotions
+            cat.position = self.camp_entrance  # Move cat back to camp
+        logging.info(f"{self.name} state has been reset.")
+
+    def heal_cats(self, current_turn: int):
+        """Checks for and heals any cats that have recovered from their wounds."""
+        for cat in self.cats:
+            if cat.is_wounded and cat.wounded_turn_index is not None:
+                turns_wounded = current_turn - cat.wounded_turn_index
+                if turns_wounded >= GameConfig.WOUNDED_CATS_TURNS_TO_SKIP:
+                    logging.info(f"  Healing {cat.name} who was wounded on turn {cat.wounded_turn_index}.")
+                    cat.heal(self.camp_entrance)
+
 
     def log_state(self, debug: bool = False):
         """Logs the detailed state of the Clan if debug mode is active."""

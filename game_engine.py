@@ -21,26 +21,49 @@ class GameEngine:
     """
     def __init__(self):
         """Initializes the GameEngine."""
+        # Build the board, dice and spinner
         self.board = Board()
-        self.clans: Dict[ClanName, Clan] = {}
-        self.combat_deck = self._initialize_combat_deck()
-        self.activity_deck = self._initialize_activity_deck()
         self.spinner = Spinner()
         self.dice = Dice(sides=6) # A standard 6-sided die for general purpose rolls
+
+        # Initialize Clans and their Cats
+        self.clans: Dict[ClanName, Clan] = {}
         self._initialize_clans()
+
+        # Create the Decks
+        self.combat_deck = self._initialize_combat_deck()
+        self.activity_deck = self._initialize_activity_deck()
+        logging.info(f"GameEngine initialized.")
+
+        # Define other game state variables
+        self.turn_count: int = None
+        self._season_cycle: cycle = None
+        self.current_season: Season = None
+        
+    def setup_game(self):
+        # --- SESSION STATE (Run Every New Game) ---
+        
+        # 1. Reset Global Counters
+        self.turn_count = 1 # Start at turn 1
+        self._season_cycle = cycle(Season) # Reset iterator
+        self.current_season = next(self._season_cycle)
+        
+        # 2. Reset Board State
+        self.board.clear_prey() # Remove leftovers from previous game
+        self.board.clear_paw_prints()
+        
+        # 3. Reset Agents (Clans and Cats)
+        for clan in self.clans.values():
+            clan.reset_clan_state()
+                
+        # 4. Shuffle Decks
+        self.activity_deck.reshuffle()
+        self.combat_deck.reshuffle()
+        
+        # 5. Initial Spawns
         self._populate_initial_prey()
         
-        # --- Season and Turn Tracking ---
-        self._season_cycle = cycle([
-            Season.NEW_LEAF,
-            Season.GREEN_LEAF,
-            Season.LEAF_FALL,
-            Season.LEAF_BARE
-        ])
-        self.current_season = next(self._season_cycle)
-        self.turn_count = 1 # Start at turn 1
-
-        logging.info(f"GameEngine initialized. It is {self.current_season.value} of turn {self.turn_count}.")
+        logging.info(f"New game started. It is {self.current_season.value} of turn {self.turn_count}.")
 
     # --- Turn Management ---
     def play_full_turn(self):
@@ -84,6 +107,9 @@ class GameEngine:
         activity card to dispatching actions.
         """
         logging.info(f"\n--- {clan.name}'s Turn ---")
+
+        # 0. Heal any cats that have recovered
+        clan.heal_cats(self.turn_count)
 
         # 1. Draw Activity Card
         card = self.activity_deck.draw()
@@ -156,21 +182,7 @@ class GameEngine:
         for clan_name, camp_pos in clan_camps.items():
             # Create the clan
             new_clan = Clan(name=clan_name, camp_entrance=camp_pos)
-
-            # --- Create and add cats to the clan ---
-            # 1. Leader (1 per clan)
-            leader_name = f"{clan_name.value}star" # e.g., ThunderClanstar
-            leader = Cat(name=leader_name, clan_id=clan_name, rank=Rank.LEADER, position=camp_pos)
-            new_clan.add_cat(leader)
-
-            # 2. Warriors
-            for i in range(GameConfig.NUM_INITIAL_WARRIORS_PER_CLAN):
-                new_clan.add_cat(Cat(name=f"Warrior {i+1}", clan_id=clan_name, rank=Rank.WARRIOR, position=camp_pos))
-
-            # 3. Apprentices
-            for i in range(GameConfig.NUM_INITIAL_APPRENTICES_PER_CLAN):
-                new_clan.add_cat(Cat(name=f"Apprentice {i+1}", clan_id=clan_name, rank=Rank.APPRENTICE, position=camp_pos))
-
+ 
             # Store the populated clan in the engine
             self.clans[clan_name] = new_clan
 
@@ -406,12 +418,12 @@ class GameEngine:
             if result == 1: # Clan A's cat won the bout
                 losing_cat = cats_b[i]
                 if losing_cat:
-                    losing_cat.sustain_injury()
+                    losing_cat.sustain_injury(self.turn_count)
                     logging.info(f"  -> {losing_cat.name} from Clan B was wounded in battle.")
             elif result == -1: # Clan B's cat won the bout
                 losing_cat = cats_a[i]
                 if losing_cat:
-                    losing_cat.sustain_injury()
+                    losing_cat.sustain_injury(self.turn_count)
                     logging.info(f"  -> {losing_cat.name} from Clan A was wounded in battle.")
             else: # It was a tie or both were wounded
                 continue

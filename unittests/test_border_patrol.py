@@ -231,8 +231,8 @@ class TestBorderPatrol(unittest.TestCase):
         """Tests that the first reward is promoting an apprentice."""
         # ARRANGE
         winning_clan = Clan(ClanName.THUNDERCLAN, (0,0))
-        apprentice = Cat("Testpaw", ClanName.THUNDERCLAN, Rank.APPRENTICE, (0,0))
-        winning_clan.add_cat(apprentice)
+        winning_clan.add_cat("Testpaw", Rank.APPRENTICE)
+        apprentice = winning_clan.cats[0]  # Get the actual Cat object
 
         # ACT
         self.engine._reward_winning_clan(winning_clan)
@@ -244,8 +244,8 @@ class TestBorderPatrol(unittest.TestCase):
         """Tests promoting a warrior to deputy if no apprentices exist."""
         # ARRANGE
         winning_clan = Clan(ClanName.THUNDERCLAN, (0,0))
-        warrior = Cat("Testfur", ClanName.THUNDERCLAN, Rank.WARRIOR, (0,0))
-        winning_clan.add_cat(warrior) # Clan has no apprentices and no deputy
+        winning_clan.add_cat("Testfur",  Rank.WARRIOR) # Clan has no apprentices and no deputy
+        warrior = winning_clan.cats[0]  # Get the actual Cat object
 
         # ACT
         self.engine._reward_winning_clan(winning_clan)
@@ -260,10 +260,8 @@ class TestBorderPatrol(unittest.TestCase):
         """
         # ARRANGE
         winning_clan = Clan(ClanName.THUNDERCLAN, (0,0))
-        leader = Cat("Teststar", ClanName.THUNDERCLAN, Rank.LEADER, (0,0))
-        deputy = Cat("Testpelt", ClanName.THUNDERCLAN, Rank.DEPUTY, (0,0))
-        winning_clan.add_cat(leader)
-        winning_clan.add_cat(deputy) # Clan has a leader and deputy, no apprentices
+        winning_clan.add_cat("Teststar", Rank.LEADER)
+        winning_clan.add_cat("Testpelt", Rank.DEPUTY) # Clan has a leader and deputy, no apprentices
 
         # ACT
         self.engine._reward_winning_clan(winning_clan)

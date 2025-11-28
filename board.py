@@ -175,6 +175,18 @@ class Board:
 
     # --- Public Methods ---
 
+    def clear_prey(self):
+        """Resets the prey count on all tiles to zero."""
+        logging.info("Clearing all prey from the board.")
+        for tile in self.grid.values():
+            tile.prey_count = 0
+
+    def clear_paw_prints(self):
+        """Removes all paw prints from the board."""
+        logging.info("Clearing all paw prints from the board.")
+        for tile in self.grid.values():
+            tile.paw_print = None
+
     def spawn_prey(self, clan_name: ClanName, slot_number: int) -> bool:
         """
         Places a prey on the specific numbered slot for the given clan.
