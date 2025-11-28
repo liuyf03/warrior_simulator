@@ -1,7 +1,9 @@
 import logging
 import random
 from typing import Tuple, Dict, List
+from itertools import cycle
 
+from activity_card import generate_balanced_activity_deck
 from board import Board
 from cat import Cat
 from clan import Clan
@@ -9,7 +11,7 @@ from combat_system import CombatSystem
 from deck import Deck
 from game_mechanics import Dice, Spinner
 from game_config import GameConfig
-from enums import Direction, TileType, ClanName, CombatMove, Rank
+from enums import Direction, TileType, ClanName, CombatMove, Rank, Season
 from tile import Tile
 
 class GameEngine:
@@ -22,12 +24,46 @@ class GameEngine:
         self.board = Board()
         self.clans: Dict[ClanName, Clan] = {}
         self.combat_deck = self._initialize_combat_deck()
+        self.activity_deck = self._initialize_activity_deck()
         self.spinner = Spinner()
         self.dice = Dice(sides=6) # A standard 6-sided die for general purpose rolls
         self._initialize_clans()
         self._populate_initial_prey()
+        
+        # --- Season and Turn Tracking ---
+        self._season_cycle = cycle([
+            Season.NEW_LEAF,
+            Season.GREEN_LEAF,
+            Season.LEAF_FALL,
+            Season.LEAF_BARE
+        ])
+        self.current_season = next(self._season_cycle)
+        self.turn_count = 1 # Start at turn 1
 
-        logging.info("GameEngine initialized.")
+        logging.info(f"GameEngine initialized. It is {self.current_season.value} of turn {self.turn_count}.")
+
+    # --- Turn Management ---
+
+    def _advance_turn(self):
+        """
+        Advances the game to the next turn, rotating the season.
+        """
+        self.turn_count += 1
+        self.current_season = next(self._season_cycle)
+        logging.info(f"--- Advancing to Turn {self.turn_count} ({self.current_season.value}) ---")
+
+    def _check_game_over(self) -> bool:
+        """
+        Checks if the game over conditions are met.
+        Currently, the game ends when self.turn_count exceeds .
+        """
+        if self.turn_count > GameConfig.MAX_NUM_GAME_TURNS:
+            # TODO: Announce final scores and winner
+            logging.info("Game Over: Maximum number of turns reached.")
+            return True
+        return False
+
+    # --- Initialization Methods ---
 
     def _initialize_combat_deck(self) -> Deck:
         """Creates and shuffles the main combat card deck."""
@@ -37,6 +73,12 @@ class GameEngine:
         for move in CombatMove:
             all_cards.extend([move] * card_copies)
         return Deck(all_cards)
+
+    def _initialize_activity_deck(self) -> Deck:
+        """Creates and shuffles the activity card deck."""
+        logging.info("Initializing activity deck...")
+        activity_cards = generate_balanced_activity_deck()
+        return Deck(activity_cards)
 
     def _populate_initial_prey(self):
         """Adds one prey to every spawn slot on the board."""
@@ -70,6 +112,8 @@ class GameEngine:
 
             # Store the populated clan in the engine
             self.clans[clan_name] = new_clan
+
+    # --- Game Actions & Mechanics ---
 
     def execute_prey_replenish(self, clan: Clan, count: int = 1):
         """
