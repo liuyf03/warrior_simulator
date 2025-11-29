@@ -22,6 +22,7 @@ class GameConfig:
     WOUNDED_CATS_TURNS_TO_SKIP: int = 2   # Turns a cat stays wounded
     BORDER_HIGHLIGHT_RATIO: float = 0.2   # Percentage of border tiles that are highlighted
     SEED_FOR_BOARD_GENERATION: int = 12346   # Seed for reproducible board layouts
+    NUM_TRAINING_BADGES_NEEDED_FOR_PROMOTION: int = 5  # Training badges needed for apprentice promotion
 
     # Point values for winning a fight based on rank
     SCORE_MAP = {

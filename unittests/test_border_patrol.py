@@ -71,11 +71,12 @@ class TestBorderPatrol(unittest.TestCase):
         enemy_scent_tile.paw_print = ClanName.RIVERCLAN
 
         # ACTION
-        final_pos, _ = self.engine.execute_border_patrol_move(cat, Direction.S, 5)
+        final_pos, _, combat_triggered = self.engine.execute_border_patrol_move(cat, Direction.S, 5)
 
         # ASSERTIONS
         self.assertEqual(final_pos, enemy_scent_pos)
         cat.move.assert_called_once_with(enemy_scent_pos)
+        self.assertTrue(combat_triggered)
 
         # 2. Assert that the combat function was called exactly once with the correct clans
         mock_trigger_combat.assert_called_once_with(self.mock_thunderclan, self.mock_riverclan)
@@ -107,11 +108,12 @@ class TestBorderPatrol(unittest.TestCase):
         cat = MockCat("Graystripe", ClanName.THUNDERCLAN, start_pos)
 
         # ACTION
-        final_pos, _ = self.engine.execute_border_patrol_move(cat, Direction.E, 3)
+        final_pos, _, combat_triggered = self.engine.execute_border_patrol_move(cat, Direction.E, 3)
 
         # ASSERTIONS
         last_pos_before_enemy_territory = (1,5)
         self.assertEqual(final_pos, last_pos_before_enemy_territory)
+        self.assertFalse(combat_triggered)
 
     # --- Tests for execute_border_patrol wrapper ---
 
@@ -124,6 +126,7 @@ class TestBorderPatrol(unittest.TestCase):
         mock_spin.return_value = Direction.S
         mock_roll.return_value = 4
         cat = MockCat("Lionheart", ClanName.THUNDERCLAN, position=(0, 5)) # On the border
+        mock_execute_move.return_value = ((0, 0), [], False)
 
         # ACT
         self.engine.execute_border_patrol(cat)
@@ -143,6 +146,7 @@ class TestBorderPatrol(unittest.TestCase):
         mock_spin.side_effect = [Direction.W, Direction.E]
         mock_roll.return_value = 3
         cat = MockCat("Tigerclaw", ClanName.THUNDERCLAN, position=(-4, 5)) # In territory
+        mock_execute_move.return_value = ((0, 0), [], False)
 
         # ACT
         self.engine.execute_border_patrol(cat)

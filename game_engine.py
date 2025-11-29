@@ -126,10 +126,12 @@ class GameEngine:
 
         # 3. Execute Actions based on Warrior Count
         actions_to_perform = card.actions[:num_actions]
+        # Also get the list of apprentices for training actions
+        clan_apprentices = clan.get_apprentices()
         for i, action_type in enumerate(actions_to_perform):
             # TODO: Implement AI to intelligently assign action to cats based on position
             cat_for_action = active_warriors[i]
-            self._dispatch_action(cat_for_action, action_type)
+            self._dispatch_action(cat_for_action, clan_apprentices, action_type)
 
         # 4. Discard Card
         self.activity_deck.discard(card)
@@ -139,18 +141,41 @@ class GameEngine:
             logging.info(f"  {self.current_season.value} Bonus: Leader replenishes prey.")
             self.execute_prey_replenish(clan, count=1)
 
-    def _dispatch_action(self, cat: Cat, action_type: Activity):
+    def _dispatch_action(self, cat: Cat, clan_apprentices: List[Cat], action_type: Activity):
         """Helper to map an Activity enum to an actual method call for a specific cat."""
         logging.info(f"  Dispatching {cat.name} to perform: {action_type.value}")
         if action_type == Activity.HUNT:
             self.execute_hunt(cat)
         elif action_type == Activity.PATROL:
             self.execute_border_patrol(cat)
-        # TODO: Implement training logic
         elif action_type == Activity.TRAIN_HUNT:
-            self.execute_hunt(cat)
+            # The warrior performs the action
+            self.execute_hunt(cat) 
+            # Then, take the first available apprentice with them
+            if clan_apprentices:
+                # TODO: AI could pick best apprentice
+                apprentice_to_train = clan_apprentices[0]
+                logging.info(f"  -> {cat.name} is taking {apprentice_to_train.name} for hunting training.")
+                self.execute_hunt(apprentice_to_train)
+                # Reward: Collect Badge
+                apprentice_to_train.collect_training_badge()
+            else:
+                logging.info(f"  -> No available apprentices for {cat.name} to train for hunt.")
         elif action_type == Activity.TRAIN_PATROL:
-            self.execute_border_patrol(cat)
+            # The warrior performs the action first
+            combat_triggered = self.execute_border_patrol(cat)
+            # The apprentice only goes if the warrior's patrol was uneventful
+            if not combat_triggered and clan_apprentices:
+                apprentice_to_train = clan_apprentices[0]
+                logging.info(f"  -> {cat.name} is taking {apprentice_to_train.name} for patrol training.")
+                self.execute_border_patrol(apprentice_to_train)
+                # Reward: Collect Badge
+                apprentice_to_train.collect_training_badge()
+            elif combat_triggered:
+                logging.info(f"  -> {cat.name} encountered conflict and could not train an apprentice.")
+            else:
+                logging.info(f"  -> No available apprentices for {cat.name} to train for border patrol.")
+
         else:
             logging.warning(f"  [Warning] Unknown or unimplemented action type: {action_type}")
 
@@ -257,7 +282,7 @@ class GameEngine:
             if tile.prey_count > 0:
                 logging.info(f"  -> {cat.name} caught prey at ({tile.x}, {tile.y})!")
                 prey_caught += tile.prey_count
-                tile.prey_count = 0 # Remove prey from the board
+                tile.reset_prey() # Remove prey from the board
         
         # 4. Update the Clan's resources (uncomment when clans are managed by engine)
         if prey_caught > 0 and cat.clan_id in self.clans:
@@ -265,14 +290,15 @@ class GameEngine:
         
         return final_pos, prey_caught
 
-    def execute_border_patrol(self, cat: Cat):
+    def execute_border_patrol(self, cat: Cat) -> bool:
         """
         Spins, rolls, and executes a patrol move with intelligent re-rolls.
         If a cat is in its territory, it will try to move towards the border.
+        Returns True if combat was triggered, False otherwise.
         """
         if not cat.position:
             logging.warning(f"{cat.name} is in the medicine den and cannot patrol.")
-            return
+            return False
 
         # --- Determine the move (direction and steps) ---
         chosen_direction: Direction | None = None
@@ -307,16 +333,20 @@ class GameEngine:
 
         # --- Execute the chosen move ---
         if chosen_direction and chosen_steps:
-            self.execute_border_patrol_move(cat, chosen_direction, chosen_steps)
+            _, _, combat_triggered = self.execute_border_patrol_move(cat, chosen_direction, chosen_steps)
+            return combat_triggered
         else:
             logging.info(f"{cat.name} could not find a good patrol route after {GameConfig.MAX_PATROL_REROLLS} tries and gives up the turn.")
+            return False
 
-    def execute_border_patrol_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], List[Tile]]:
+    def execute_border_patrol_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], List[Tile], bool]:
         """
         Moves a cat according to Border Patrol rules and processes the outcome.
+        Returns the final position, the path taken, and whether combat was triggered.
         """
         logging.info(f"{cat.name} is patrolling {direction.name} for {steps} steps from {cat.position}.")
 
+        combat_triggered = False
         # --- Rule Definition for Patrolling ---
         def is_valid_border_patrol_step(target_tile: Tile) -> bool:
             # Rule: Patrolling cats can enter their own territory and border tiles.
@@ -361,8 +391,11 @@ class GameEngine:
             aggressor_clan = self.clans[cat.clan_id]
             defender_clan = self.clans[final_tile.paw_print]
             self._trigger_clan_combat(aggressor_clan, defender_clan)
+            combat_triggered = True
+            # Reset the paw print after combat
+            final_tile.reset_paw_print()
 
-        return final_pos, path_tiles
+        return final_pos, path_tiles, combat_triggered
 
     def _trigger_clan_combat(self, clan_a: Clan, clan_b: Clan):
         """

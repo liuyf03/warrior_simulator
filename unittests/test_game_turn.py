@@ -107,6 +107,35 @@ class TestGameTurn(unittest.TestCase):
         # 3. The seasonal bonus was not triggered
         self.engine.execute_prey_replenish.assert_not_called()
 
+    @patch('game_engine.GameEngine.execute_hunt')
+    def test_execute_train_hunt_with_apprentice(self, mock_execute_hunt):
+        """
+        Tests that TRAIN_HUNT activity makes both the warrior and an available apprentice hunt.
+        """
+        # ARRANGE
+        # 1. Mock the clan to have one active warrior and one available apprentice
+        mock_apprentice = MagicMock()
+        self.mock_clan.get_active_warriors.return_value = [self.mock_warrior_1]
+        self.mock_clan.get_apprentices.return_value = [mock_apprentice]
+
+        # 2. Mock the activity card to draw a TRAIN_HUNT action
+        train_hunt_card = ActivityCard([Activity.TRAIN_HUNT])
+        self.engine.activity_deck.draw.return_value = train_hunt_card
+
+        # 3. Set a season without a bonus to isolate the test
+        self.engine.current_season = Season.LEAF_FALL
+
+        # ACT
+        self.engine._execute_clan_turn(self.mock_clan)
+
+        # ASSERT
+        # 1. Check that get_apprentices was called to find a trainee
+        self.mock_clan.get_apprentices.assert_called_once()
+
+        # 2. Check that execute_hunt was called for both the warrior and the apprentice
+        self.assertEqual(mock_execute_hunt.call_count, 2)
+        mock_execute_hunt.assert_has_calls([call(self.mock_warrior_1), call(mock_apprentice)])
+
     # --- Tests for play_full_turn ---
 
     @patch('game_engine.GameEngine._advance_turn')

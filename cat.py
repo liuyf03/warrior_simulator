@@ -3,6 +3,7 @@ import logging
 from typing import Optional, Tuple
 
 from enums import Rank, ClanName
+from game_config import GameConfig
 
 class Cat:
     """
@@ -31,6 +32,7 @@ class Cat:
         self.is_wounded: bool = False
         self.position: Optional[Tuple[int, int]] = position
         self.wounded_turn_index: Optional[int] = None
+        self.training_badges = 0
 
     def log_state(self, debug: bool = False):
         """Prints the detailed state of the cat if debug mode is active."""
@@ -55,6 +57,20 @@ class Cat:
         self.position = new_position
         logging.info(f"{self.name} moved to {self.position}.")
 
+    def collect_training_badge(self):
+        """
+        Increments badge count. Triggers automatic promotion if threshold reached.
+        """
+        # Only Apprentices can collect badges
+        if self.rank != Rank.APPRENTICE:
+            return
+
+        self.training_badges += 1
+        logging.info(f"[Training] {self.id} earned a badge! ({self.training_badges}/{GameConfig.NUM_TRAINING_BADGES_NEEDED_FOR_PROMOTION})")
+
+        if self.training_badges >= GameConfig.NUM_TRAINING_BADGES_NEEDED_FOR_PROMOTION:
+            self.promote()
+
     def promote(self) -> bool:
         """
         Promotes the cat to the next rank.
@@ -63,6 +79,8 @@ class Cat:
         if self.rank == Rank.APPRENTICE:
             self.rank = Rank.WARRIOR
             logging.info(f"{self.name} has been promoted to Warrior!")
+            # Reset badges
+            self.training_badges = 0
             return True
         elif self.rank == Rank.WARRIOR:
             self.rank = Rank.DEPUTY
