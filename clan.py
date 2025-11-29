@@ -29,15 +29,15 @@ class Clan:
     def _reset_clan_cats(self):
         """Creates and adds the starting cats (Leader, Warriors, Apprentices) to the clan."""
         # 1. Leader (1 per clan)
-        self.add_cat(name=f"{self.name.value}star", rank=Rank.LEADER)
+        self.add_cat(name=GameConfig.LEADER_NAME_MAP[self.name], rank=Rank.LEADER)
 
         # 2. Warriors
         for i in range(GameConfig.NUM_INITIAL_WARRIORS_PER_CLAN):
-            self.add_cat(name=f"Warrior {i+1}", rank=Rank.WARRIOR)
+            self.add_cat(name=GameConfig.WARRIORS_NAME_MAP[self.name][i], rank=Rank.WARRIOR)
 
         # 3. Apprentices
         for i in range(GameConfig.NUM_INITIAL_APPRENTICES_PER_CLAN):
-            self.add_cat(name=f"Apprentice {i+1}", rank=Rank.APPRENTICE)
+            self.add_cat(name=GameConfig.APPRENTICES_NAME_MAP[self.name][i], rank=Rank.APPRENTICE)
     
     def add_cat(self, name: str, rank: Rank):
         """Creates a new cat with the clan's properties and adds it."""

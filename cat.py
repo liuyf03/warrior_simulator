@@ -40,7 +40,6 @@ class Cat:
             # This uses a multi-line string for cleaner formatting in logs.
             # We use logging.debug for high-verbosity information.
             logging.debug(f"--- Cat State: {self.name} ---\n"
-                        f"  ID: {self.id}\n"
                         f"  Clan: {self.clan_id}\n"
                         f"  Rank: {self.rank}, Wounded: {self.is_wounded}\n"
                         f"  Position: {self.position}\n"
@@ -66,7 +65,7 @@ class Cat:
             return
 
         self.training_badges += 1
-        logging.info(f"[Training] {self.id} earned a badge! ({self.training_badges}/{GameConfig.NUM_TRAINING_BADGES_NEEDED_FOR_PROMOTION})")
+        logging.info(f"[Training] {self.name} earned a badge! ({self.training_badges}/{GameConfig.NUM_TRAINING_BADGES_NEEDED_FOR_PROMOTION})")
 
         if self.training_badges >= GameConfig.NUM_TRAINING_BADGES_NEEDED_FOR_PROMOTION:
             self.promote()

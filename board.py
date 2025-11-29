@@ -17,7 +17,7 @@ class Board:
         grid (dict[Tuple[int, int], Tile]): A dictionary mapping (x, y) coordinates to Tile objects.
     """
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self):
         """
         Initializes the Board by generating all legal tiles.
 
@@ -26,14 +26,12 @@ class Board:
         """
         self.grid: dict[Tuple[int, int], Tile] = {}
         self.spawn_points: dict[ClanName, dict[int, Tuple[int, int]]] = {}
-        self._initialize_board(seed=seed)
+        self._rng = random.Random(GameConfig.SEED_FOR_BOARD_GENERATION)  # Create a dedicated random generator instance
+        self._initialize_board()
         logging.info(f"Board initialized with HUNTING_GROUND_SIZE={GameConfig.HUNTING_GROUND_SIZE}, BORDER_WIDTH={GameConfig.BORDER_WIDTH}. Total tiles: {len(self.grid)}")
 
-    def _initialize_board(self, seed: Optional[int] = None):
+    def _initialize_board(self):
         """Generates all legal tiles based on N and M."""
-        if seed is not None:
-            random.seed(seed)
-            logging.info(f"  [Board] Using fixed seed for initialization: {seed}")
         self._generate_border()
         self._generate_clan_territories()
         self._assign_spawn_points()
@@ -125,7 +123,7 @@ class Board:
         while True:
             # Generate a potential pattern
             potential_indices = list(range(n))
-            random.shuffle(potential_indices)
+            self._rng.shuffle(potential_indices)
             
             # Check if this pattern would cause any spawn point to overlap with a camp
             overlap_found = False
@@ -199,7 +197,7 @@ class Board:
             return
 
         # 3. Random Selection (No replacement)
-        chosen_positions = random.sample(border_positions, target_count)
+        chosen_positions = self._rng.sample(border_positions, target_count)
 
         # 4. Update Tiles
         for pos in chosen_positions:

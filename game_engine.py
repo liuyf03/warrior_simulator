@@ -26,7 +26,7 @@ class GameEngine:
             seed: An optional integer to seed the random number generator for reproducible board layouts.
         """
         # Build the board, dice and spinner
-        self.board = Board(seed=GameConfig.SEED_FOR_BOARD_GENERATION)
+        self.board = Board()
         self.spinner = Spinner()
         self.dice = Dice(sides=6) # A standard 6-sided die for general purpose rolls
 
@@ -100,9 +100,37 @@ class GameEngine:
         Currently, the game ends when self.turn_count exceeds .
         """
         if self.turn_count > GameConfig.MAX_NUM_GAME_TURNS:
-            # TODO: Announce final scores and winner
             logging.info("Game Over: Maximum number of turns reached.")
+
+            # --- Announce Final Scores and Winner ---
+            logging.info("\n--- FINAL GAME RESULTS ---")
+
+            # 1. Get scores from all clans and log them
+            clan_scores = []
+            for clan in self.clans.values():
+                clan_scores.append((clan.name, clan.prey_pile))
+                logging.info(f"  {clan.name}: {clan.prey_pile} prey")
+
+            # 2. Sort clans by prey pile in descending order
+            clan_scores.sort(key=lambda x: x[1], reverse=True)
+
+            # 3. Determine the winner(s)
+            if not clan_scores:
+                logging.info("\nNo clans to determine a winner.")
+                return True
+
+            winner_name, winner_score = clan_scores[0]
+            winners = [name for name, score in clan_scores if score == winner_score]
+
+            logging.info("\n--- WINNER ANNOUNCEMENT ---")
+            if len(winners) > 1:
+                winner_names_str = " and ".join([w.value for w in winners])
+                logging.info(f"The game ends in a draw between {winner_names_str} with {winner_score} prey!")
+            else:
+                logging.info(f"{winner_name.value} wins the game with {winner_score} prey!")
+
             return True
+        
         return False
     
     def _execute_clan_turn(self, clan: Clan):
@@ -143,38 +171,38 @@ class GameEngine:
 
     def _dispatch_action(self, cat: Cat, clan_apprentices: List[Cat], action_type: Activity):
         """Helper to map an Activity enum to an actual method call for a specific cat."""
-        logging.info(f"  Dispatching {cat.name} to perform: {action_type.value}")
+        logging.info(f"  Dispatching {cat} to perform: {action_type.value}")
         if action_type == Activity.HUNT:
             self.execute_hunt(cat)
         elif action_type == Activity.PATROL:
             self.execute_border_patrol(cat)
         elif action_type == Activity.TRAIN_HUNT:
             # The warrior performs the action
-            self.execute_hunt(cat) 
+            self.execute_hunt(cat)
             # Then, take the first available apprentice with them
             if clan_apprentices:
                 # TODO: AI could pick best apprentice
                 apprentice_to_train = clan_apprentices[0]
-                logging.info(f"  -> {cat.name} is taking {apprentice_to_train.name} for hunting training.")
+                logging.info(f"  -> {cat} is taking {apprentice_to_train} for hunting training.")
                 self.execute_hunt(apprentice_to_train)
                 # Reward: Collect Badge
                 apprentice_to_train.collect_training_badge()
             else:
-                logging.info(f"  -> No available apprentices for {cat.name} to train for hunt.")
+                logging.info(f"  -> No available apprentices for {cat} to train for hunt.")
         elif action_type == Activity.TRAIN_PATROL:
             # The warrior performs the action first
             combat_triggered = self.execute_border_patrol(cat)
             # The apprentice only goes if the warrior's patrol was uneventful
             if not combat_triggered and clan_apprentices:
                 apprentice_to_train = clan_apprentices[0]
-                logging.info(f"  -> {cat.name} is taking {apprentice_to_train.name} for patrol training.")
+                logging.info(f"  -> {cat} is taking {apprentice_to_train} for patrol training.")
                 self.execute_border_patrol(apprentice_to_train)
                 # Reward: Collect Badge
                 apprentice_to_train.collect_training_badge()
             elif combat_triggered:
-                logging.info(f"  -> {cat.name} encountered conflict and could not train an apprentice.")
+                logging.info(f"  -> {cat} encountered conflict and could not train an apprentice.")
             else:
-                logging.info(f"  -> No available apprentices for {cat.name} to train for border patrol.")
+                logging.info(f"  -> No available apprentices for {cat} to train for border patrol.")
 
         else:
             logging.warning(f"  [Warning] Unknown or unimplemented action type: {action_type}")
@@ -238,7 +266,7 @@ class GameEngine:
         Spins for a direction, rolls for steps, and executes a hunt move.
         """
         if not cat.position:
-            logging.warning(f"{cat.name} is in the medicine den and cannot hunt.")
+            logging.warning(f"{cat} is in the medicine den and cannot hunt.")
             return
 
         # 1. Spin for a random direction
@@ -254,7 +282,7 @@ class GameEngine:
         """
         Moves a cat according to Hunting rules and processes the outcome.
         """
-        logging.info(f"{cat.name} is hunting {direction.name} for {steps} steps from {cat.position}.")
+        logging.info(f"{cat} is hunting {direction.name} for {steps} steps from {cat.position}.")
 
         # --- Rule Definition for Hunting ---
         def is_valid_hunt_step(target_tile: Tile) -> bool:
@@ -280,7 +308,7 @@ class GameEngine:
         prey_caught = 0
         for tile in path_tiles:
             if tile.prey_count > 0:
-                logging.info(f"  -> {cat.name} caught prey at ({tile.x}, {tile.y})!")
+                logging.info(f"  -> {cat} caught prey at ({tile.x}, {tile.y})!")
                 prey_caught += tile.prey_count
                 tile.reset_prey() # Remove prey from the board
         
@@ -297,7 +325,7 @@ class GameEngine:
         Returns True if combat was triggered, False otherwise.
         """
         if not cat.position:
-            logging.warning(f"{cat.name} is in the medicine den and cannot patrol.")
+            logging.warning(f"{cat} is in the medicine den and cannot patrol.")
             return False
 
         # --- Determine the move (direction and steps) ---
@@ -308,7 +336,7 @@ class GameEngine:
 
         # Case 1: Cat is already on the border, any move is fine.
         if initial_dist_to_border == 0:
-            logging.info(f"{cat.name} is on the border, choosing a random patrol route.")
+            logging.info(f"{cat} is on the border, choosing a random patrol route.")
             chosen_direction = self.spinner.spin()
             chosen_steps = self.dice.roll()
         else:
@@ -323,20 +351,20 @@ class GameEngine:
                 next_step_pos = (cat.position[0] + dx, cat.position[1] + dy)
                 
                 # A "good" move is one that exists and doesn't increase the distance to the border.
-                if self.board.get_tile(next_step_pos) and self.board.get_distance_to_border(next_step_pos) < initial_dist_to_border:
-                    logging.info(f"{cat.name} chose a good patrol route towards the border after {i+1} tries.")
+                if self.board.get_tile(next_step_pos) and self.board.get_distance_to_border(next_step_pos) <= initial_dist_to_border:
+                    logging.info(f"{cat} chose a good patrol route towards the border after {i+1} tries.")
                     chosen_direction = direction
                     chosen_steps = steps
                     break # Found a good move, exit the retry loop
 
-                logging.debug(f"Patrol reroll {i+1}/{max_retries}: Move {direction.name} was not towards the border.")
+                logging.info(f"Patrol reroll {i+1}/{max_retries}: Move {direction.name} was not towards the border.")
 
         # --- Execute the chosen move ---
         if chosen_direction and chosen_steps:
             _, _, combat_triggered = self.execute_border_patrol_move(cat, chosen_direction, chosen_steps)
             return combat_triggered
         else:
-            logging.info(f"{cat.name} could not find a good patrol route after {GameConfig.MAX_PATROL_REROLLS} tries and gives up the turn.")
+            logging.info(f"{cat} could not find a good patrol route after {GameConfig.MAX_PATROL_REROLLS} tries and gives up the turn.")
             return False
 
     def execute_border_patrol_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], List[Tile], bool]:
@@ -344,7 +372,7 @@ class GameEngine:
         Moves a cat according to Border Patrol rules and processes the outcome.
         Returns the final position, the path taken, and whether combat was triggered.
         """
-        logging.info(f"{cat.name} is patrolling {direction.name} for {steps} steps from {cat.position}.")
+        logging.info(f"{cat} is patrolling {direction.name} for {steps} steps from {cat.position}.")
 
         combat_triggered = False
         # --- Rule Definition for Patrolling ---
@@ -359,7 +387,7 @@ class GameEngine:
             # Rule: A patrol move stops if it finds a paw print from another clan.
             tile = self.board.get_tile(current_pos)
             if tile and tile.paw_print and tile.paw_print != cat.clan_id:
-                logging.info(f"  -> {cat.name} found an enemy scent marker from {tile.paw_print.value} at {current_pos}. Halting patrol.")
+                logging.info(f"  -> {cat} found an enemy scent marker from {tile.paw_print.value} at {current_pos}. Halting patrol.")
                 return True
             return False
         # ------------------------------------
@@ -376,15 +404,8 @@ class GameEngine:
         # 2. Update the Cat's state
         cat.move(final_pos)
 
-        # 3. Process interactions along the path (leave paw prints)
-        for tile in path_tiles:
-            # Rule: A cat on patrol only leaves a scent marker on special "highlighted" tiles.
-            if tile.is_highlighted:
-                tile.paw_print = cat.clan_id
-                logging.debug(f"  -> {cat.name} left a scent marker on a highlighted tile at ({tile.x}, {tile.y}).")
-
-        # 4. Post-Move Event Check
-        # Check if the patrol stopped because it found an enemy scent
+        # 3. Post-Move Event Check
+        # Check if the patrol stopped because it found an enemy scent to trigger combat
         final_tile = self.board.get_tile(final_pos)
         if final_tile and final_tile.paw_print and final_tile.paw_print != cat.clan_id:
             # A fight is triggered!
@@ -394,6 +415,13 @@ class GameEngine:
             combat_triggered = True
             # Reset the paw print after combat
             final_tile.reset_paw_print()
+
+         # 4. Process interactions along the path (leave paw prints)
+        for tile in path_tiles:
+            # Rule: A cat on patrol only leaves a scent marker on special "highlighted" tiles.
+            if tile.is_highlighted:
+                tile.paw_print = cat.clan_id
+                logging.info(f"  -> {cat} left a scent marker on a highlighted tile at ({tile.x}, {tile.y}).")
 
         return final_pos, path_tiles, combat_triggered
 
@@ -413,8 +441,8 @@ class GameEngine:
             cards_a = [self.combat_deck.draw() if cat else None for cat in cats_a]
             cards_b = [self.combat_deck.draw() if cat else None for cat in cats_b]
 
-            logging.debug(f"Round {i+1} draws for {clan_a.name}: {[c.value if c else 'N/A' for c in cards_a]}")
-            logging.debug(f"Round {i+1} draws for {clan_b.name}: {[c.value if c else 'N/A' for c in cards_b]}")
+            logging.info(f"Round {i+1} draws for {clan_a.name}: {[c.value if c else 'N/A' for c in cards_a]}")
+            logging.info(f"Round {i+1} draws for {clan_b.name}: {[c.value if c else 'N/A' for c in cards_b]}")
 
             # 3. Use the CombatSystem to calculate the results
             score_a, score_b, slot_results = CombatSystem.calculate_fight_results(cards_a, cards_b, ranks_a, ranks_b)
@@ -456,12 +484,12 @@ class GameEngine:
                 losing_cat = cats_b[i]
                 if losing_cat:
                     losing_cat.sustain_injury(self.turn_count)
-                    logging.info(f"  -> {losing_cat.name} from Clan B was wounded in battle.")
+                    logging.info(f"  -> {losing_cat} from Clan B was wounded in battle.")
             elif result == -1: # Clan B's cat won the bout
                 losing_cat = cats_a[i]
                 if losing_cat:
                     losing_cat.sustain_injury(self.turn_count)
-                    logging.info(f"  -> {losing_cat.name} from Clan A was wounded in battle.")
+                    logging.info(f"  -> {losing_cat} from Clan A was wounded in battle.")
             else: # It was a tie or both were wounded
                 continue
 
@@ -475,13 +503,13 @@ class GameEngine:
         # Reward 1: Try to promote an Apprentice
         promoted_apprentice = winning_clan.promote_apprentice()
         if promoted_apprentice:
-            logging.info(f"  As a reward for victory, {promoted_apprentice.name} has been promoted to a Warrior!")
+            logging.info(f"  As a reward for victory, {promoted_apprentice} has been promoted to a Warrior!")
             return
 
         # Reward 2: If no apprentice was promoted, try to promote a Warrior to Deputy
         promoted_warrior = winning_clan.promote_warrior_to_deputy()
         if promoted_warrior:
-            logging.info(f"  As a reward for victory, {promoted_warrior.name} has been promoted to Deputy!")
+            logging.info(f"  As a reward for victory, {promoted_warrior} has been promoted to Deputy!")
             return
 
         # Reward 3: If no promotions are possible, replenish prey

@@ -68,6 +68,7 @@ class TestBorderPatrol(unittest.TestCase):
         cat = MockCat("Bluestar", ClanName.THUNDERCLAN, start_pos)
         enemy_scent_pos = (-1, 1)
         enemy_scent_tile = self.engine.board.get_tile(enemy_scent_pos)
+        enemy_scent_tile.is_highlighted = True
         enemy_scent_tile.paw_print = ClanName.RIVERCLAN
 
         # ACTION
@@ -76,10 +77,12 @@ class TestBorderPatrol(unittest.TestCase):
         # ASSERTIONS
         self.assertEqual(final_pos, enemy_scent_pos)
         cat.move.assert_called_once_with(enemy_scent_pos)
-        self.assertTrue(combat_triggered)
+        self.assertTrue(combat_triggered) 
 
         # 2. Assert that the combat function was called exactly once with the correct clans
         mock_trigger_combat.assert_called_once_with(self.mock_thunderclan, self.mock_riverclan)
+        # After the combat, RIVERCLAN paw print should be cleared, replaced by THUNDERCLAN's paw print
+        self.assertEqual(enemy_scent_tile.paw_print, ClanName.THUNDERCLAN)
 
     def test_patrol_leaves_scent_only_on_highlighted_tiles(self):
         """

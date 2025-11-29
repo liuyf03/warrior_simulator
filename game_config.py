@@ -32,6 +32,27 @@ class GameConfig:
         Rank.APPRENTICE: 1
     }
 
+    LEADER_NAME_MAP = {
+        ClanName.THUNDERCLAN: "Bluestar",
+        ClanName.RIVERCLAN: "Crookedstar",
+        ClanName.SHADOWCLAN: "Nightstar",
+        ClanName.WINDCLAN: "Tallstar"
+    }
+
+    WARRIORS_NAME_MAP = {
+        ClanName.THUNDERCLAN: ["Lionheart", "Tigerclaw", "Redtail", "Whitestorm"],
+        ClanName.RIVERCLAN: ["Leopardfur", "Stonefur", "Oakheart", "Mosspelt"],
+        ClanName.SHADOWCLAN: ["Blackfoot", "Clawface", "Tawnypelt", "Snowbird"],
+        ClanName.WINDCLAN: ["Deadfoot", "Onewhisker", "Tornear", "Morningflower"]
+    }
+
+    APPRENTICES_NAME_MAP = {
+        ClanName.THUNDERCLAN: ["Firepaw", "Graypaw", "Sandpaw", "Dustpaw"],
+        ClanName.RIVERCLAN: ["Graypaw", "Heavypaw", "Blackpaw", "Silverpaw"],       
+        ClanName.SHADOWCLAN: ["Browpaw", "Littlepaw", "Boulderpaw", "Rowanpaw"],
+        ClanName.WINDCLAN: ["Gorsepaw", "Swiftpaw", "Breezepaw", "Leafpaw"]
+    }        
+
     @staticmethod
     def border_half_width() -> int:
         """Calculates half the width of the central border area."""
