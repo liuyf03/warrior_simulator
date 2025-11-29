@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Optional
 from itertools import cycle
 
 from activity_card import generate_balanced_activity_deck
@@ -12,6 +12,7 @@ from deck import Deck
 from game_mechanics import Dice, Spinner
 from game_config import GameConfig
 from enums import Direction, TileType, ClanName, CombatMove, Rank, Season, Activity
+from stats_collector import StatsCollector, Metric
 from tile import Tile
 
 class GameEngine:
@@ -43,6 +44,8 @@ class GameEngine:
         self.turn_count: int = None
         self._season_cycle: cycle = None
         self.current_season: Season = None
+        # Collect game metrics for analysis
+        self.stats: Optional[StatsCollector] = None
         
     def setup_game(self):
         # --- SESSION STATE (Run Every New Game) ---
@@ -68,6 +71,21 @@ class GameEngine:
         self._populate_initial_prey()
         
         logging.info(f"New game started. It is {self.current_season.value} of turn {self.turn_count}.")
+
+    def run_simulation(self, stats: Optional[StatsCollector] = None):
+        """
+        Runs a full game from setup to completion, optionally collecting statistics.
+        """
+        # 1. ATTACH: The collector becomes a member of the engine
+        self.stats = stats
+        
+        self.setup_game()
+        
+        while not self._check_game_over():
+            self.play_full_turn()
+
+        # 2. DETACH: Remove reference to stats collector
+        self.stats = None
 
     # --- Turn Management ---
     def play_full_turn(self):
@@ -101,38 +119,53 @@ class GameEngine:
         """
         if self.turn_count > GameConfig.MAX_NUM_GAME_TURNS:
             logging.info("Game Over: Maximum number of turns reached.")
-
-            # --- Announce Final Scores and Winner ---
-            logging.info("\n--- FINAL GAME RESULTS ---")
-
-            # 1. Get scores from all clans and log them
-            clan_scores = []
-            for clan in self.clans.values():
-                clan_scores.append((clan.name, clan.prey_pile))
-                logging.info(f"  {clan.name}: {clan.prey_pile} prey")
-
-            # 2. Sort clans by prey pile in descending order
-            clan_scores.sort(key=lambda x: x[1], reverse=True)
-
-            # 3. Determine the winner(s)
-            if not clan_scores:
-                logging.info("\nNo clans to determine a winner.")
-                return True
-
-            winner_name, winner_score = clan_scores[0]
-            winners = [name for name, score in clan_scores if score == winner_score]
-
-            logging.info("\n--- WINNER ANNOUNCEMENT ---")
-            if len(winners) > 1:
-                winner_names_str = " and ".join([w.value for w in winners])
-                logging.info(f"The game ends in a draw between {winner_names_str} with {winner_score} prey!")
-            else:
-                logging.info(f"{winner_name.value} wins the game with {winner_score} prey!")
-
+            self._record_winner()
             return True
         
         return False
     
+    def _record_winner(self):
+        """
+        Records the winner of the game.
+        """
+        # --- Announce Final Scores and Winner ---
+        logging.info("\n--- FINAL GAME RESULTS ---")
+        # 1. Get scores from all clans and log them
+        clan_scores = []
+        for clan in self.clans.values():
+            clan_scores.append((clan.name, clan.prey_pile))
+            logging.info(f"  {clan.name}: {clan.prey_pile} prey")
+
+        # 2. Sort clans by prey pile in descending order
+        clan_scores.sort(key=lambda x: x[1], reverse=True)
+
+        # 3. Determine the winner(s)
+        if not clan_scores:
+            logging.info("\nNo clans to determine a winner.")
+            return None
+
+        _, winner_score = clan_scores[0]
+        winners = [name for name, score in clan_scores if score == winner_score]
+
+        # 4. Record statistics about the result
+        if self.stats:
+            for winner_name in winners:
+                self.stats.aggregate_count(Metric.RESULT, f"num_{winner_name.value}_wins")
+            if len(winners) > 1:
+                self.stats.aggregate_count(Metric.RESULT, "num_draws")
+            self.stats.aggregate_average(Metric.RESULT, "avg_winner_score", winner_score)
+            spread = clan_scores[0][1] - clan_scores[-1][1]
+            self.stats.aggregate_average(Metric.RESULT, "avg_winner_spread", spread)
+            advantage = clan_scores[0][1] - clan_scores[1][1]
+            self.stats.aggregate_average(Metric.RESULT, "avg_winner_advantage", advantage)
+
+        logging.info("\n--- WINNER ANNOUNCEMENT ---")
+        if len(winners) > 1:
+            winner_names_str = " and ".join([w.value for w in winners])
+            logging.info(f"The game ends in a draw between {winner_names_str} with {winner_score} prey!")            
+        else:
+            logging.info(f"{winners[0].value} wins the game with {winner_score} prey!")
+
     def _execute_clan_turn(self, clan: Clan):
         """
         Executes the logic for a single clan's turn, from drawing an
@@ -151,6 +184,11 @@ class GameEngine:
         active_warriors = clan.get_active_warriors()
         num_actions = len(active_warriors)
         logging.info(f"  {clan.name} has {num_actions} active warriors available for duties.")
+        if self.stats:
+            num_warriors = len(clan.get_warriors())
+            self.stats.aggregate_average(Metric.INJURY, f"avg_injury_skipped_turn_{self.turn_count}", num_warriors - num_actions)
+            self.stats.aggregate_average(Metric.PROMOTION, f"avg_num_deputy_at_turn_{self.turn_count}", 1 if clan.has_deputy() else 0)
+            self.stats.aggregate_average(Metric.PROMOTION, f"avg_num_warriors_at_turn_{self.turn_count}", num_warriors)
 
         # 3. Execute Actions based on Warrior Count
         actions_to_perform = card.actions[:num_actions]
@@ -187,6 +225,8 @@ class GameEngine:
                 self.execute_hunt(apprentice_to_train)
                 # Reward: Collect Badge
                 apprentice_to_train.collect_training_badge()
+                if self.stats:
+                    self.stats.aggregate_count(Metric.HUNT, f"num_training_at_turn_{self.turn_count}")
             else:
                 logging.info(f"  -> No available apprentices for {cat} to train for hunt.")
         elif action_type == Activity.TRAIN_PATROL:
@@ -199,6 +239,8 @@ class GameEngine:
                 self.execute_border_patrol(apprentice_to_train)
                 # Reward: Collect Badge
                 apprentice_to_train.collect_training_badge()
+                if self.stats:
+                    self.stats.aggregate_count(Metric.PATROL, f"num_training_at_turn_{self.turn_count}")
             elif combat_triggered:
                 logging.info(f"  -> {cat} encountered conflict and could not train an apprentice.")
             else:
@@ -266,7 +308,8 @@ class GameEngine:
         Spins for a direction, rolls for steps, and executes a hunt move.
         """
         if not cat.position:
-            logging.warning(f"{cat} is in the medicine den and cannot hunt.")
+            logging.info(f"{cat} is in the medicine den and cannot hunt.")
+            cat.injury_turn_skipped += 1
             return
 
         # 1. Spin for a random direction
@@ -306,15 +349,27 @@ class GameEngine:
 
         # 3. Process interactions along the path (e.g., collect prey)
         prey_caught = 0
+        prey_slot_ids = []
         for tile in path_tiles:
             if tile.prey_count > 0:
                 logging.info(f"  -> {cat} caught prey at ({tile.x}, {tile.y})!")
                 prey_caught += tile.prey_count
+                prey_slot_ids.append(tile.slot_id)
                 tile.reset_prey() # Remove prey from the board
         
         # 4. Update the Clan's resources (uncomment when clans are managed by engine)
         if prey_caught > 0 and cat.clan_id in self.clans:
             self.clans[cat.clan_id].add_prey(prey_caught)
+
+        # 5. Record statistics
+        if self.stats:
+            self.stats.aggregate_average(Metric.HUNT, f"avg_steps_moved_for_{cat.clan_id.value}", len(path_tiles))
+            self.stats.aggregate_average(Metric.HUNT, "avg_prey_caught_rate", 1 if prey_caught > 0 else 0)
+            self.stats.aggregate_average(Metric.HUNT, "avg_prey_caught_per_hunt", prey_caught)
+            self.stats.aggregate_count(Metric.HUNT, f"num_prey_caught_for_clan_{cat.clan_id.value}")
+            self.stats.aggregate_count(Metric.HUNT, f"num_prey_caught_for_turn_{self.turn_count}")
+            for slot_id in prey_slot_ids:
+                self.stats.aggregate_count(Metric.HUNT, f"num_prey_caught_at_slot_{slot_id}")
         
         return final_pos, prey_caught
 
@@ -325,7 +380,8 @@ class GameEngine:
         Returns True if combat was triggered, False otherwise.
         """
         if not cat.position:
-            logging.warning(f"{cat} is in the medicine den and cannot patrol.")
+            logging.info(f"{cat} is in the medicine den and cannot patrol.")
+            cat.injury_turn_skipped += 1
             return False
 
         # --- Determine the move (direction and steps) ---
@@ -358,6 +414,10 @@ class GameEngine:
                     break # Found a good move, exit the retry loop
 
                 logging.info(f"Patrol reroll {i+1}/{max_retries}: Move {direction.name} was not towards the border.")
+
+        if self.stats:
+            self.stats.aggregate_average(Metric.PATROL, "avg_insider_border_rate", 1 if initial_dist_to_border == 0 else 0)
+            self.stats.aggregate_average(Metric.PATROL, "avg_turn_give_up_rate", 1 if chosen_direction is None or chosen_steps is None else 0)
 
         # --- Execute the chosen move ---
         if chosen_direction and chosen_steps:
@@ -417,11 +477,22 @@ class GameEngine:
             final_tile.reset_paw_print()
 
          # 4. Process interactions along the path (leave paw prints)
+        scent_marks_left = 0
         for tile in path_tiles:
             # Rule: A cat on patrol only leaves a scent marker on special "highlighted" tiles.
             if tile.is_highlighted:
                 tile.paw_print = cat.clan_id
+                scent_marks_left += 1
                 logging.info(f"  -> {cat} left a scent marker on a highlighted tile at ({tile.x}, {tile.y}).")
+
+        # 5. Record statistics
+        if self.stats:
+            self.stats.aggregate_average(Metric.PATROL, "avg_scent_marks_left", scent_marks_left)
+            self.stats.aggregate_average(Metric.PATROL, "avg_combat_trigger_rate", 1 if combat_triggered else 0)
+            if combat_triggered:
+                self.stats.aggregate_count(Metric.PATROL, "num_combat_triggered")
+                self.stats.aggregate_average(Metric.PATROL, "avg_turn_when_combat_triggered", self.turn_count)
+            self.stats.aggregate_average(Metric.PATROL, f"avg_steps_moved_for_{cat.clan_id.value}", len(path_tiles))
 
         return final_pos, path_tiles, combat_triggered
 
@@ -436,6 +507,7 @@ class GameEngine:
         cats_b, ranks_b = clan_b.get_combat_squad()
         
         max_rounds = 3
+        combat_results_in_tie = True
         for i in range(max_rounds):
             # 2. Draw combat cards for each clan
             cards_a = [self.combat_deck.draw() if cat else None for cat in cats_a]
@@ -462,6 +534,7 @@ class GameEngine:
                     logging.info("The skirmish ends in a final draw after 3 rounds!")
                 continue # Proceed to next round or end
             
+            combat_results_in_tie = False
             # Resolve winning cat rewards
             if score_a > score_b:
                 logging.info(f"{clan_a.name} wins the skirmish!")
@@ -473,6 +546,13 @@ class GameEngine:
             # Mark wounded cats based on slot results
             self._mark_wounded_cats(cats_a, cats_b, slot_results)
             break # A winner is found, exit the loop
+
+        # Record status
+        if self.stats:
+            self.stats.aggregate_count(Metric.COMBAT, f"num_{clan_a.name.value}_vs_{clan_b.name.value}")
+            self.stats.aggregate_count(Metric.COMBAT, "num_skirmishes_drawn" if combat_results_in_tie else "num_skirmishes_decided")
+            if not combat_results_in_tie:
+                self.stats.aggregate_count(Metric.COMBAT, f"num_{clan_a.name.value}_skirmish_wins" if score_a > score_b else f"num_{clan_b.name.value}_skirmish_wins")
                 
 
     def _mark_wounded_cats(self, cats_a: List[Cat | None], cats_b: List[Cat | None], slot_results: List[int]):
@@ -480,19 +560,15 @@ class GameEngine:
         Marks cats as wounded based on the combat slot results.
         """
         for i, result in enumerate(slot_results):
-            if result == 1: # Clan A's cat won the bout
-                losing_cat = cats_b[i]
-                if losing_cat:
-                    losing_cat.sustain_injury(self.turn_count)
-                    logging.info(f"  -> {losing_cat} from Clan B was wounded in battle.")
-            elif result == -1: # Clan B's cat won the bout
-                losing_cat = cats_a[i]
-                if losing_cat:
-                    losing_cat.sustain_injury(self.turn_count)
-                    logging.info(f"  -> {losing_cat} from Clan A was wounded in battle.")
-            else: # It was a tie or both were wounded
+            if result == 0:
+                continue # No injuries in this slot
+            losing_cat = cats_b[i] if result == 1 else cats_a[i]
+            if not losing_cat:
                 continue
-
+            losing_cat.sustain_injury(self.turn_count)
+            logging.info(f"  -> {losing_cat} from {losing_cat.clan_id.value} was wounded in battle.")
+            if self.stats:
+                self.stats.aggregate_count(Metric.INJURY, f"num_injury_in_combat_{losing_cat.clan_id.value}")
 
     def _reward_winning_clan(self, winning_clan: Clan):
         """
@@ -503,15 +579,21 @@ class GameEngine:
         # Reward 1: Try to promote an Apprentice
         promoted_apprentice = winning_clan.promote_apprentice()
         if promoted_apprentice:
+            if self.stats:
+                self.stats.aggregate_count(Metric.PROMOTION, f"num_clan_{winning_clan.name.value}_to_{Rank.WARRIOR.value}_in_combat")
             logging.info(f"  As a reward for victory, {promoted_apprentice} has been promoted to a Warrior!")
             return
 
         # Reward 2: If no apprentice was promoted, try to promote a Warrior to Deputy
         promoted_warrior = winning_clan.promote_warrior_to_deputy()
         if promoted_warrior:
+            if self.stats:
+                self.stats.aggregate_count(Metric.PROMOTION, f"num_clan_{winning_clan.name.value}_to_{Rank.DEPUTY.value}_in_combat")
             logging.info(f"  As a reward for victory, {promoted_warrior} has been promoted to Deputy!")
             return
 
         # Reward 3: If no promotions are possible, replenish prey
         logging.info(f"  As a reward for victory, the prey has been replenished in {winning_clan.name}'s territory.")
         self.execute_prey_replenish(winning_clan, count=1)
+        if self.stats:
+            self.stats.aggregate_count(Metric.HUNT, f"num_clan_{winning_clan.name.value}_prey_replenish_in_combat")

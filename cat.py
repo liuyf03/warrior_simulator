@@ -32,6 +32,7 @@ class Cat:
         self.is_wounded: bool = False
         self.position: Optional[Tuple[int, int]] = position
         self.wounded_turn_index: Optional[int] = None
+        self.injury_turn_skipped: Optional[int] = None
         self.training_badges = 0
 
     def log_state(self, debug: bool = False):
@@ -52,6 +53,9 @@ class Cat:
         """
         if self.is_wounded:
             logging.info(f"{self.name} is wounded and cannot move from the Medicine Den.")
+            return
+        if not new_position:
+            logging.warning(f"{self.name} is now directed to move to illegal position.")
             return
         self.position = new_position
         logging.info(f"{self.name} moved to {self.position}.")
@@ -84,6 +88,7 @@ class Cat:
         elif self.rank == Rank.WARRIOR:
             self.rank = Rank.DEPUTY
             logging.info(f"{self.name} has been promoted to Deputy!")
+            return True
         else:
             logging.warning(f"{self.name} cannot be promoted from the rank of {self.rank}.")
             return False
@@ -95,6 +100,7 @@ class Cat:
         """
         self.is_wounded = True
         self.wounded_turn_index = current_turn
+        self.injury_turn_skipped = 0
         self.position = None  # Represents being in the Medicine Den
         logging.info(f"{self.name} has been wounded and is now in the Medicine Den.")
 
@@ -109,6 +115,7 @@ class Cat:
 
         self.is_wounded = False
         self.wounded_turn_index = None
+        self.injury_turn_skipped = None
         self.position = camp_entrance
         logging.info(f"{self.name} has healed and returned to the camp entrance at {self.position}.")
 

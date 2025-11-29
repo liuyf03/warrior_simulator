@@ -83,6 +83,9 @@ class Clan:
 
     def get_active_warriors(self) -> List[Cat]:
         """Returns a list of healthy (unwounded) cats with the rank of Warrior or Deputy."""
+        for cat in self.cats:
+            if cat.rank in (Rank.WARRIOR, Rank.DEPUTY) and cat.is_wounded:
+                cat.injury_turn_skipped += 1
         return [cat for cat in self.cats if cat.rank in (Rank.WARRIOR, Rank.DEPUTY) and not cat.is_wounded]
 
     def get_apprentices(self) -> List[Cat]:

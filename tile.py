@@ -11,6 +11,7 @@ class Tile:
         self.type: TileType = tile_type
         self.is_highlighted: bool = False # For border special spots or UI
         self.is_spawn_point: bool = False # For prey spawn locations
+        self.slot_id: Optional[int] = None # The prey spawn slot ID (1-6)
         # State variables
         self.prey_count: int = 0
         self.paw_print: Optional[ClanName] = None  # None or ClanName

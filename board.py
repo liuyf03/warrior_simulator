@@ -176,7 +176,9 @@ class Board:
                 
                 # Optional: Flag the tile for visualization
                 if (final_x, final_y) in self.grid:
-                    self.grid[(final_x, final_y)].is_spawn_point = True
+                    tile = self.grid[(final_x, final_y)]
+                    tile.is_spawn_point = True
+                    tile.slot_id = slot_id
 
     def _assign_border_highlights(self):
         """
