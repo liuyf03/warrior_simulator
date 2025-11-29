@@ -34,11 +34,17 @@ class TestBorderPatrol(unittest.TestCase):
 
     def setUp(self):
         """This method runs before each test."""
+        # Patch the board's highlight assignment to prevent random highlights
+        self.patcher = patch('board.Board._assign_border_highlights')
+        self.mock_assign_highlights = self.patcher.start()
+
         self.original_border_width = GameConfig.BORDER_WIDTH
         self.original_hunting_size = GameConfig.HUNTING_GROUND_SIZE
         GameConfig.BORDER_WIDTH = 3
         GameConfig.HUNTING_GROUND_SIZE = 6
+
         self.engine = GameEngine()
+
         # Add mock clans needed for combat trigger tests
         self.mock_thunderclan = MockClan(ClanName.THUNDERCLAN)
         self.mock_riverclan = MockClan(ClanName.RIVERCLAN)
@@ -47,6 +53,7 @@ class TestBorderPatrol(unittest.TestCase):
 
     def tearDown(self): 
         """This method runs after each test to clean up."""
+        self.patcher.stop() # Stop the patch to clean up the test environment
         GameConfig.BORDER_WIDTH = self.original_border_width
         GameConfig.HUNTING_GROUND_SIZE = self.original_hunting_size
 

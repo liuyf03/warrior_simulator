@@ -20,6 +20,8 @@ class GameConfig:
     NUM_ACTIVITY_CARDS_IN_DECK: int = 40  # Total activity cards in the deck
     ACTIVITY_SLOTS_PER_CARD: int = 4      # Number of activity slots on
     WOUNDED_CATS_TURNS_TO_SKIP: int = 2   # Turns a cat stays wounded
+    BORDER_HIGHLIGHT_RATIO: float = 0.2   # Percentage of border tiles that are highlighted
+    SEED_FOR_BOARD_GENERATION: int = 12346   # Seed for reproducible board layouts
 
     # Point values for winning a fight based on rank
     SCORE_MAP = {

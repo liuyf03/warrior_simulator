@@ -20,9 +20,13 @@ class GameEngine:
     and executes game logic and actions.
     """
     def __init__(self):
-        """Initializes the GameEngine."""
+        """
+        Initializes the GameEngine.
+        Args:
+            seed: An optional integer to seed the random number generator for reproducible board layouts.
+        """
         # Build the board, dice and spinner
-        self.board = Board()
+        self.board = Board(seed=GameConfig.SEED_FOR_BOARD_GENERATION)
         self.spinner = Spinner()
         self.dice = Dice(sides=6) # A standard 6-sided die for general purpose rolls
 

@@ -17,20 +17,27 @@ class Board:
         grid (dict[Tuple[int, int], Tile]): A dictionary mapping (x, y) coordinates to Tile objects.
     """
 
-    def __init__(self):
+    def __init__(self, seed: Optional[int] = None):
         """
         Initializes the Board by generating all legal tiles.
+
+        Args:
+            seed: An optional integer to seed the random number generator for reproducible boards.
         """
         self.grid: dict[Tuple[int, int], Tile] = {}
         self.spawn_points: dict[ClanName, dict[int, Tuple[int, int]]] = {}
-        self._initialize_board()
+        self._initialize_board(seed=seed)
         logging.info(f"Board initialized with HUNTING_GROUND_SIZE={GameConfig.HUNTING_GROUND_SIZE}, BORDER_WIDTH={GameConfig.BORDER_WIDTH}. Total tiles: {len(self.grid)}")
 
-    def _initialize_board(self):
+    def _initialize_board(self, seed: Optional[int] = None):
         """Generates all legal tiles based on N and M."""
+        if seed is not None:
+            random.seed(seed)
+            logging.info(f"  [Board] Using fixed seed for initialization: {seed}")
         self._generate_border()
         self._generate_clan_territories()
         self._assign_spawn_points()
+        self._assign_border_highlights()
 
     def _generate_border(self):
         """
@@ -172,6 +179,31 @@ class Board:
                 # Optional: Flag the tile for visualization
                 if (final_x, final_y) in self.grid:
                     self.grid[(final_x, final_y)].is_spawn_point = True
+
+    def _assign_border_highlights(self):
+        """
+        Randomly selects a percentage of BORDER tiles to be 'Highlighted'.
+        These are the spots where Paw Prints can be placed.
+        """
+        # 1. Filter: Get list of all coordinate tuples (x,y) that are BORDERS
+        border_positions = [
+            pos for pos, tile in self.grid.items()
+            if tile.type == TileType.BORDER
+        ]
+
+        # 2. Calculate Count
+        total_border_tiles = len(border_positions)
+        target_count = int(total_border_tiles * GameConfig.BORDER_HIGHLIGHT_RATIO)
+
+        if target_count == 0:
+            return
+
+        # 3. Random Selection (No replacement)
+        chosen_positions = random.sample(border_positions, target_count)
+
+        # 4. Update Tiles
+        for pos in chosen_positions:
+            self.grid[pos].is_highlighted = True
 
     # --- Public Methods ---
 

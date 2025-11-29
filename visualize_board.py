@@ -47,6 +47,8 @@ def print_board(board: Board):
             elif tile:
                 if tile.is_spawn_point:
                     row_str += "P" # Mark Prey spawn points
+                elif tile.is_highlighted:
+                    row_str += "*" # Mark highlighted border tiles
                 else:
                     row_str += tile_char_map.get(tile.type, "?") # Otherwise, show tile type
             else:
@@ -62,7 +64,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING)
 
     # Create a board instance
-    game_board = Board()
+    game_board = Board(seed=12346) # Use a fixed seed for consistent visualization
 
     # Print the visual representation
     print_board(game_board)
