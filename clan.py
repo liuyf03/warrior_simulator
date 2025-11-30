@@ -28,6 +28,7 @@ class Clan:
 
     def _reset_clan_cats(self):
         """Creates and adds the starting cats (Leader, Warriors, Apprentices) to the clan."""
+        self.cats = []
         # 1. Leader (1 per clan)
         self.add_cat(name=GameConfig.LEADER_NAME_MAP[self.name], rank=Rank.LEADER)
 
@@ -51,10 +52,6 @@ class Clan:
         self.prey_pile = 0
 
         self._reset_clan_cats()
-        for cat in self.cats:
-            cat.is_wounded = False
-            cat.rank = cat.original_rank # Revert any promotions
-            cat.position = self.camp_entrance  # Move cat back to camp
         logging.info(f"{self.name} state has been reset.")
 
     def heal_cats(self, current_turn: int):

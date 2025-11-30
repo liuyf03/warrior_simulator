@@ -158,6 +158,12 @@ class GameEngine:
             self.stats.aggregate_average(Metric.RESULT, "avg_winner_spread", spread)
             advantage = clan_scores[0][1] - clan_scores[1][1]
             self.stats.aggregate_average(Metric.RESULT, "avg_winner_advantage", advantage)
+            num_deputy = sum(1 for clan in self.clans.values() if clan.has_deputy())
+            num_warriors = sum(len(clan.get_warriors()) for clan in self.clans.values())
+            num_apprentices = sum(len(clan.get_apprentices()) for clan in self.clans.values())
+            self.stats.aggregate_average(Metric.RESULT, "avg_num_deputies_endgame", num_deputy)
+            self.stats.aggregate_average(Metric.RESULT, "avg_num_warriors_endgame", num_warriors)
+            self.stats.aggregate_average(Metric.RESULT, "avg_num_apprentices_endgame", num_apprentices)
 
         logging.info("\n--- WINNER ANNOUNCEMENT ---")
         if len(winners) > 1:
@@ -192,12 +198,10 @@ class GameEngine:
 
         # 3. Execute Actions based on Warrior Count
         actions_to_perform = card.actions[:num_actions]
-        # Also get the list of apprentices for training actions
-        clan_apprentices = clan.get_apprentices()
         for i, action_type in enumerate(actions_to_perform):
             # TODO: Implement AI to intelligently assign action to cats based on position
             cat_for_action = active_warriors[i]
-            self._dispatch_action(cat_for_action, clan_apprentices, action_type)
+            self._dispatch_action(cat_for_action, clan, action_type)
 
         # 4. Discard Card
         self.activity_deck.discard(card)
@@ -206,8 +210,10 @@ class GameEngine:
         if self.current_season in [Season.NEW_LEAF, Season.GREEN_LEAF]:
             logging.info(f"  {self.current_season.value} Bonus: Leader replenishes prey.")
             self.execute_prey_replenish(clan, count=1)
+            if self.stats:
+                self.stats.aggregate_count(Metric.HUNT, f"num_seasonal_prey_replenish_for_{clan.name.value}")
 
-    def _dispatch_action(self, cat: Cat, clan_apprentices: List[Cat], action_type: Activity):
+    def _dispatch_action(self, cat: Cat, clan: Clan, action_type: Activity):
         """Helper to map an Activity enum to an actual method call for a specific cat."""
         logging.info(f"  Dispatching {cat} to perform: {action_type.value}")
         if action_type == Activity.HUNT:
@@ -217,7 +223,8 @@ class GameEngine:
         elif action_type == Activity.TRAIN_HUNT:
             # The warrior performs the action
             self.execute_hunt(cat)
-            # Then, take the first available apprentice with them
+            # Get the list of apprentices for training actions
+            clan_apprentices = clan.get_apprentices()
             if clan_apprentices:
                 # TODO: AI could pick best apprentice
                 apprentice_to_train = clan_apprentices[0]
@@ -232,6 +239,8 @@ class GameEngine:
         elif action_type == Activity.TRAIN_PATROL:
             # The warrior performs the action first
             combat_triggered = self.execute_border_patrol(cat)
+            # Get the list of apprentices for training actions
+            clan_apprentices = clan.get_apprentices()
             # The apprentice only goes if the warrior's patrol was uneventful
             if not combat_triggered and clan_apprentices:
                 apprentice_to_train = clan_apprentices[0]
