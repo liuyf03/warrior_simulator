@@ -15,6 +15,7 @@ class MockCat:
         self.clan_id = clan_id
         self.position = position
         self.move = MagicMock()
+        self.record_last_acted_turn = MagicMock()
 
     def __repr__(self):
         return f"MockCat(name='{self.name}', position={self.position})"

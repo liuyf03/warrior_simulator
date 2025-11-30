@@ -60,9 +60,13 @@ class Clan:
     def heal_cats(self, current_turn: int):
         """Checks for and heals any cats that have recovered from their wounds."""
         for cat in self.cats:
-            if cat.is_wounded and cat.wounded_turn_index is not None:
-                turns_wounded = current_turn - cat.wounded_turn_index
-                if turns_wounded >= GameConfig.WOUNDED_CATS_TURNS_TO_SKIP:
+            if cat.is_wounded:
+                # Under two conditions the cat can heal:
+                # 1. They have been wounded for the required number of turns (leader, apprentice)
+                # 2. Their last acted turn was sufficiently long ago (warrior, deputy)
+                turns_wounded = (current_turn - cat.wounded_turn_index) if (cat.wounded_turn_index is not None) else 0
+                turns_skipped = (current_turn - cat.last_acted_turn) if (cat.last_acted_turn is not None) else 0
+                if max(turns_wounded, turns_skipped) >= GameConfig.WOUNDED_CATS_TURNS_TO_SKIP:
                     logging.info(f"  Healing {cat.name} who was wounded on turn {cat.wounded_turn_index}.")
                     cat.heal(self.camp_entrance)
 
@@ -83,9 +87,6 @@ class Clan:
 
     def get_active_warriors(self) -> List[Cat]:
         """Returns a list of healthy (unwounded) cats with the rank of Warrior or Deputy."""
-        for cat in self.cats:
-            if cat.rank in (Rank.WARRIOR, Rank.DEPUTY) and cat.is_wounded:
-                cat.injury_turn_skipped += 1
         return [cat for cat in self.cats if cat.rank in (Rank.WARRIOR, Rank.DEPUTY) and not cat.is_wounded]
 
     def get_apprentices(self) -> List[Cat]:

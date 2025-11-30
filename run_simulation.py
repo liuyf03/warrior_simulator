@@ -92,7 +92,7 @@ def run_mass_simulation(num_simulations: int = 1000):
 
 if __name__ == '__main__':
     # --- CHOOSE WHICH SIMULATION TO RUN ---
-    RUN_MASS_SIMULATION = True
+    RUN_MASS_SIMULATION = False
 
     if RUN_MASS_SIMULATION:
         run_mass_simulation(num_simulations=1000)

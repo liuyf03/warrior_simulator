@@ -309,8 +309,10 @@ class GameEngine:
         """
         if not cat.position:
             logging.info(f"{cat} is in the medicine den and cannot hunt.")
-            cat.injury_turn_skipped += 1
             return
+        
+        # Mark last active turn
+        cat.record_last_acted_turn(self.turn_count)
 
         # 1. Spin for a random direction
         direction = self.spinner.spin()
@@ -381,8 +383,10 @@ class GameEngine:
         """
         if not cat.position:
             logging.info(f"{cat} is in the medicine den and cannot patrol.")
-            cat.injury_turn_skipped += 1
             return False
+        
+        # Mark last active turn
+        cat.record_last_acted_turn(self.turn_count)
 
         # --- Determine the move (direction and steps) ---
         chosen_direction: Direction | None = None
@@ -420,12 +424,13 @@ class GameEngine:
             self.stats.aggregate_average(Metric.PATROL, "avg_turn_give_up_rate", 1 if chosen_direction is None or chosen_steps is None else 0)
 
         # --- Execute the chosen move ---
+        combat_triggered = False
         if chosen_direction and chosen_steps:
             _, _, combat_triggered = self.execute_border_patrol_move(cat, chosen_direction, chosen_steps)
-            return combat_triggered
         else:
             logging.info(f"{cat} could not find a good patrol route after {GameConfig.MAX_PATROL_REROLLS} tries and gives up the turn.")
-            return False
+        
+        return combat_triggered
 
     def execute_border_patrol_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], List[Tile], bool]:
         """

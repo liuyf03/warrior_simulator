@@ -32,7 +32,7 @@ class Cat:
         self.is_wounded: bool = False
         self.position: Optional[Tuple[int, int]] = position
         self.wounded_turn_index: Optional[int] = None
-        self.injury_turn_skipped: Optional[int] = None
+        self.last_acted_turn: Optional[int] = None
         self.training_badges = 0
 
     def log_state(self, debug: bool = False):
@@ -100,7 +100,6 @@ class Cat:
         """
         self.is_wounded = True
         self.wounded_turn_index = current_turn
-        self.injury_turn_skipped = 0
         self.position = None  # Represents being in the Medicine Den
         logging.info(f"{self.name} has been wounded and is now in the Medicine Den.")
 
@@ -115,9 +114,16 @@ class Cat:
 
         self.is_wounded = False
         self.wounded_turn_index = None
-        self.injury_turn_skipped = None
         self.position = camp_entrance
         logging.info(f"{self.name} has healed and returned to the camp entrance at {self.position}.")
+
+    def record_last_acted_turn(self, turn_index: int):
+        """
+        Records the last turn index when the cat took an action.
+        Only applicable to warriors and deputies.
+        """
+        if self.rank in (Rank.WARRIOR, Rank.DEPUTY):
+            self.last_acted_turn = turn_index
 
     def __repr__(self) -> str:
         """Provides a developer-friendly representation of the Cat."""
