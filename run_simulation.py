@@ -37,6 +37,12 @@ def run_full_game_simulation():
     logging.info("\n--- Initial Board Layout ---")
     logging.info(board_visualization)
 
+    # --- Log the full Activity Card Deck ---
+    logging.info("\n--- Full Activity Card Deck (40 Cards) ---")
+    # The `_original_items` attribute of the Deck class holds the unshuffled list of cards.
+    for i, card in enumerate(game.activity_deck._original_items):
+        logging.info(f"  Card {i+1:02d}: {card}")
+
     # --- 3. Main Game Loop ---
     # We can now use the run_simulation method from the engine
     game.run_simulation()
@@ -92,7 +98,7 @@ def run_mass_simulation(num_simulations: int = 1000):
 
 if __name__ == '__main__':
     # --- CHOOSE WHICH SIMULATION TO RUN ---
-    RUN_MASS_SIMULATION = True
+    RUN_MASS_SIMULATION = False
 
     if RUN_MASS_SIMULATION:
         run_mass_simulation(num_simulations=1000)

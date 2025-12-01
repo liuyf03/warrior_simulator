@@ -36,6 +36,7 @@ class Board:
         self._generate_clan_territories()
         self._assign_spawn_points()
         self._assign_border_highlights()
+        self._assign_starclan_landmarks()
 
     def _generate_border(self):
         """
@@ -205,6 +206,36 @@ class Board:
         for pos in chosen_positions:
             self.grid[pos].is_highlighted = True
 
+    def _assign_starclan_landmarks(self):
+        """
+        Randomly selects a percentage of eligible tiles to be 'StarClan Landmarks'.
+        Eligible tiles are any walkable tile that is NOT a spawn point, a
+        highlighted border tile, or a camp entrance.
+        """
+        camp_coords = set(GameConfig.get_clan_camps().values())
+
+        # 1. Filter: Get a list of all eligible tiles
+        eligible_tiles = [
+            tile for pos, tile in self.grid.items()
+            if tile.is_walkable and
+               not tile.is_spawn_point and
+               not tile.is_highlighted and
+               pos not in camp_coords
+        ]
+
+        # 2. Calculate Count based on the ratio of ALL tiles on the board
+        total_tiles = len(self.grid)
+        target_count = int(total_tiles * GameConfig.STARCLAN_LANDMARK_RATIO)
+
+        if target_count == 0 or not eligible_tiles:
+            return
+
+        # 3. Random Selection (ensure we don't try to pick more than are eligible)
+        chosen_tiles = self._rng.sample(eligible_tiles, min(target_count, len(eligible_tiles)))
+
+        # 4. Update Tiles
+        for tile in chosen_tiles:
+            tile.is_starclan_landmark = True
     # --- Public Methods ---
 
     def clear_prey(self):

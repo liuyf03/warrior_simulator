@@ -10,6 +10,7 @@ class Tile:
         self.y: int = y
         self.type: TileType = tile_type
         self.is_highlighted: bool = False # For border special spots or UI
+        self.is_starclan_landmark: bool = False # For StarClan event triggers
         self.is_spawn_point: bool = False # For prey spawn locations
         self.slot_id: Optional[int] = None # The prey spawn slot ID (1-6)
         # State variables

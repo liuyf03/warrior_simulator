@@ -45,7 +45,9 @@ def get_board_string(board: Board) -> str:
                 # Prioritize marking camp entrances
                 row_str += "C"
             elif tile:
-                if tile.is_spawn_point:
+                if tile.is_starclan_landmark:
+                    row_str += "L" # Mark StarClan landmarks
+                elif tile.is_spawn_point:
                     row_str += "P" # Mark Prey spawn points
                 elif tile.is_highlighted:
                     row_str += "*" # Mark highlighted border tiles
