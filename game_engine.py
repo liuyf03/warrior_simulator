@@ -14,6 +14,7 @@ from game_config import GameConfig
 from enums import Direction, TileType, ClanName, CombatMove, Rank, Season, Activity
 from stats_collector import StatsCollector, Metric
 from tile import Tile
+from starclan_event_resolver import StarClanEventResolver
 
 class GameEngine:
     """
@@ -34,6 +35,9 @@ class GameEngine:
         # Initialize Clans and their Cats
         self.clans: Dict[ClanName, Clan] = {}
         self._initialize_clans()
+
+        # Initialize StarClan Event Resolver
+        self.starclan_resolver = StarClanEventResolver(self)
 
         # Create the Decks
         self.combat_deck = self._initialize_combat_deck()

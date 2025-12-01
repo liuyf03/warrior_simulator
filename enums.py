@@ -38,6 +38,30 @@ class CardType(str, Enum):
     def __str__(self):
         return self.value
 
+class StarClanCard(str, Enum):
+    """Defines the names of the possible StarClan blessing/curse cards."""
+    A_BLESSING_OF_NEW_LEAF = "A Blessing of New Leaf"
+    THE_BOUNTIFUL_SEASON = "The Bountiful Season"
+    WARRIOR_CODE_UPHELD = "Warrior Code Upheld"
+    BORDER_WASHOUT = "Border Washout"
+    WHISPERS_OF_BATTLE = "Whispers of Battle"
+    A_SWIFT_PAW = "A Swift Paw"
+    THE_SICKNESS_SPREADS = "The Sickness Spreads"
+    THE_BADGER_SET = "The Badger Set"
+    A_TRUE_WARRIORS_HEART = "A True Warrior's Heart"
+    PROPHECY_OF_UNITY = "Prophecy of Unity"
+    THE_MOONSTONE_VISION = "The Moonstone Vision"
+    ROGUE_INTRUDER = "Rogue Intruder"
+    LEADERSHIP_TRIAL = "Leadership Trial"
+    HUNTERS_LUCK = "Hunter's Luck"
+    RISING_SPIRIT = "Rising Spirit"
+    SUDDEN_ILLNESS = "Sudden Illness"
+    RAVENS_PLUNDER = "Raven's Plunder"
+    UNEXPECTED_ENCOUNTER = "Unexpected Encounter"
+
+    def __str__(self):
+        return self.value
+
 class ClanName(str, Enum):
     """Defines the names of the four major Clans."""
     THUNDERCLAN = "ThunderClan"
