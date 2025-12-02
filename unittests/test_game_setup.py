@@ -45,7 +45,7 @@ class TestGameSetup(unittest.TestCase):
 
         # 4. Assert that both decks are reshuffled
         # We expect two calls to reshuffle: one for the activity deck, one for the combat deck.
-        self.assertEqual(mock_reshuffle.call_count, 2, "reshuffle() should be called for both decks.")
+        self.assertEqual(mock_reshuffle.call_count, 3, "reshuffle() should be called for both decks.")
 
         # 5. Assert that initial prey is populated at the end
         mock_populate_prey.assert_called_once()

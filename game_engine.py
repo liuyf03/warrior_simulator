@@ -11,7 +11,7 @@ from combat_system import CombatSystem
 from deck import Deck
 from game_mechanics import Dice, Spinner
 from game_config import GameConfig
-from enums import Direction, TileType, ClanName, CombatMove, Rank, Season, Activity
+from enums import Direction, TileType, ClanName, CombatMove, Rank, Season, Activity, StarClanCard
 from stats_collector import StatsCollector, Metric
 from tile import Tile
 from starclan_event_resolver import StarClanEventResolver
@@ -42,6 +42,7 @@ class GameEngine:
         # Create the Decks
         self.combat_deck = self._initialize_combat_deck()
         self.activity_deck = self._initialize_activity_deck()
+        self.starclan_deck = self._initialize_starclan_deck()
         logging.info(f"GameEngine initialized.")
 
         # Define other game state variables
@@ -70,6 +71,7 @@ class GameEngine:
         # 4. Shuffle Decks
         self.activity_deck.reshuffle()
         self.combat_deck.reshuffle()
+        self.starclan_deck.reshuffle()
         
         # 5. Initial Spawns
         self._populate_initial_prey()
@@ -278,6 +280,12 @@ class GameEngine:
         logging.info("Initializing activity deck...")
         activity_cards = generate_balanced_activity_deck()
         return Deck(activity_cards)
+    
+    def _initialize_starclan_deck(self) -> Deck:
+        """Creates and shuffles the StarClan event card deck."""
+        logging.info("Initializing StarClan deck...")
+        all_cards = list(StarClanCard)
+        return Deck(all_cards)
 
     def _populate_initial_prey(self):
         """Adds one prey to every spawn slot on the board."""
@@ -334,7 +342,13 @@ class GameEngine:
         steps = self.dice.roll()
 
         # 3. Call the underlying move execution method
-        self.execute_hunt_move(cat, direction, steps)
+        final_pos, _ = self.execute_hunt_move(cat, direction, steps)
+
+        # 4. Check for StarClan event at the destination
+        final_tile = self.board.get_tile(final_pos)
+        if final_tile and final_tile.is_starclan_landmark:
+            self._trigger_starclan_event(cat)
+
 
     def execute_hunt_move(self, cat: Cat, direction: Direction, steps: int) -> Tuple[Tuple[int, int], int]:
         """
@@ -375,6 +389,12 @@ class GameEngine:
         # 4. Update the Clan's resources (uncomment when clans are managed by engine)
         if prey_caught > 0 and cat.clan_id in self.clans:
             self.clans[cat.clan_id].add_prey(prey_caught)
+
+        # Check for StarClan landmark on the final tile
+        final_tile = self.board.get_tile(final_pos)
+        if final_tile and final_tile.is_starclan_landmark:
+            self._trigger_starclan_event(cat)
+
 
         # 5. Record statistics
         if self.stats:
@@ -439,7 +459,13 @@ class GameEngine:
         # --- Execute the chosen move ---
         combat_triggered = False
         if chosen_direction and chosen_steps:
-            _, _, combat_triggered = self.execute_border_patrol_move(cat, chosen_direction, chosen_steps)
+            final_pos, _, combat_triggered = self.execute_border_patrol_move(cat, chosen_direction, chosen_steps)
+
+            # Check for StarClan event only if combat did NOT occur
+            final_tile = self.board.get_tile(final_pos)
+            if not combat_triggered and final_tile and final_tile.is_starclan_landmark:
+                self._trigger_starclan_event(cat)
+
         else:
             logging.info(f"{cat} could not find a good patrol route after {GameConfig.MAX_PATROL_REROLLS} tries and gives up the turn.")
         
@@ -503,6 +529,12 @@ class GameEngine:
                 scent_marks_left += 1
                 logging.info(f"  -> {cat} left a scent marker on a highlighted tile at ({tile.x}, {tile.y}).")
 
+        # Check for StarClan landmark on the final tile (if combat wasn't already triggered)
+        final_tile = self.board.get_tile(final_pos)
+        if not combat_triggered and final_tile and final_tile.is_starclan_landmark:
+            self._trigger_starclan_event(cat)
+
+
         # 5. Record statistics
         if self.stats:
             self.stats.aggregate_average(Metric.PATROL, "avg_scent_marks_left", scent_marks_left)
@@ -513,6 +545,16 @@ class GameEngine:
             self.stats.aggregate_average(Metric.PATROL, f"avg_steps_moved_for_{cat.clan_id.value}", len(path_tiles))
 
         return final_pos, path_tiles, combat_triggered
+
+    def _trigger_starclan_event(self, cat: Cat):
+        """Draws a StarClan card and resolves its effect."""
+        # Draw the card
+        card = self.starclan_deck.draw()
+        # Call the resolver
+        self.starclan_resolver.resolve(card, cat)
+        if self.stats:
+            self.stats.aggregate_count(Metric.STARCLAN, f"num_starclan_events_triggered_for_{cat.clan_id.value}")
+            self.stats.aggregate_count(Metric.STARCLAN, f"num_starclan_event_{card}_triggered")
 
     def _trigger_clan_combat(self, clan_a: Clan, clan_b: Clan):
         """

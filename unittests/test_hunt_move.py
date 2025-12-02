@@ -109,6 +109,7 @@ class TestHuntMove(unittest.TestCase):
         # ARRANGE
         mock_spin.return_value = Direction.N
         mock_roll.return_value = 5
+        mock_execute_move.return_value = ((0, 0), 0)
         cat = MockCat("Lionheart", ClanName.THUNDERCLAN, position=(-5, 5))
 
         # ACT

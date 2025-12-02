@@ -11,6 +11,7 @@ class Metric(str, Enum):
     PATROL = "patrol"
     PROMOTION = "promotion"
     INJURY = "injury"
+    STARCLAN = "starclan"
 
     def __str__(self):
         return self.value

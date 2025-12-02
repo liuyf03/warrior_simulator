@@ -60,46 +60,46 @@ class Board:
                 if (x, y) not in self.grid or self.grid[(x, y)].type != TileType.BORDER:
                     self.grid[(x, y)] = Tile(x, y, TileType.BORDER)
 
+    def _reflect_and_set(self, base_x: int, base_y: int, setter_func, use_clan_context: bool = True):
+        """
+        Takes a base coordinate from the positive-positive quadrant (RiverClan)
+        and calls a setter function for it and its three reflections. Can operate
+        with or without passing a clan context to the setter.
+        """
+        positions = [(base_x, base_y), (-base_x, base_y), (base_x, -base_y), (-base_x, -base_y)]
+        clans = [ClanName.RIVERCLAN, ClanName.THUNDERCLAN, ClanName.WINDCLAN, ClanName.SHADOWCLAN]
+
+        if use_clan_context:
+            for pos, clan in zip(positions, clans):
+                setter_func(pos[0], pos[1], clan)
+        else:
+            for x, y in positions:
+                setter_func(x, y)
+
     def _generate_clan_territories(self):
         """
-        Generates 4 quadrants.
-        Thunder: Top Left (Negative X, Positive Y)
-        River: Top Right (Positive X, Positive Y)
-        Shadow: Bottom Left (Negative X, Negative Y)
-        Wind: Bottom Right (Positive X, Negative Y)
+        Generates the four clan territory quadrants by calculating the base
+        positive-positive quadrant and reflecting it.
         """
         m = GameConfig.BORDER_WIDTH
         n = GameConfig.HUNTING_GROUND_SIZE
-        
-        # Calculate start/end for Thunder (Base Quadrant)
-        # Based on your coordinates:
-        # X: -(M+1)/2 - N + 1  TO  -(M+1)/2
-        # Y: (M+1)/2          TO  (M+1)/2 + N - 1
-        
         offset = (m + 1) // 2
         
-        # Thunder X range: [-offset - n + 1, -offset]
-        # Thunder Y range: [offset, offset + n - 1]
-        t_x_start = -offset - n + 1
-        t_x_end = -offset
-        t_y_start = offset
-        t_y_end = offset + n - 1
+        # Define the tile types for each clan
+        clan_tile_map = {
+            ClanName.RIVERCLAN: TileType.RIVER_TERRITORY,
+            ClanName.THUNDERCLAN: TileType.THUNDER_TERRITORY,
+            ClanName.WINDCLAN: TileType.WIND_TERRITORY,
+            ClanName.SHADOWCLAN: TileType.SHADOW_TERRITORY,
+        }
 
-        # We iterate through the base Thunder coordinates and reflect them
-        for x in range(t_x_start, t_x_end + 1):
-            for y in range(t_y_start, t_y_end + 1):
-                
-                # Thunder (Top Left)
-                self.grid[(x, y)] = Tile(x, y, TileType.THUNDER_TERRITORY)
-                
-                # River (Reflect X -> Positive)
-                self.grid[(-x, y)] = Tile(-x, y, TileType.RIVER_TERRITORY)
-                
-                # Shadow (Reflect Y -> Negative)
-                self.grid[(x, -y)] = Tile(x, -y, TileType.SHADOW_TERRITORY)
-                
-                # Wind (Reflect X & Y -> Positive X, Negative Y)
-                self.grid[(-x, -y)] = Tile(-x, -y, TileType.WIND_TERRITORY)
+        def tile_setter(x, y, clan_name):
+            self.grid[(x, y)] = Tile(x, y, clan_tile_map[clan_name])
+
+        # Iterate over the base positive-positive quadrant (RiverClan)
+        for x in range(offset, offset + n):
+            for y in range(offset, offset + n):
+                self._reflect_and_set(x, y, tile_setter)
 
     def _assign_spawn_points(self):
         """
@@ -108,134 +108,132 @@ class Board:
         Constraint 2: All clans share the exact same pattern, reflected.
         """
         n = GameConfig.HUNTING_GROUND_SIZE
-        m = GameConfig.BORDER_WIDTH
-        
-        # Calculate Base (ThunderClan) Start Coordinates
-        # ThunderClan is Top-Left: Negative X, Positive Y
-        offset = (m + 1) // 2
-        base_x_start = -offset - n + 1
-        base_y_start = offset
+        offset = (GameConfig.BORDER_WIDTH + 1) // 2
 
         # Get all camp coordinates to avoid placing spawn points on them
         camp_coords = set(GameConfig.get_clan_camps().values())
 
-        col_indices = []
-        # 1. Generate and validate the Master Pattern (The "Seed")
+        # 1. Generate and validate the Master Pattern for one quadrant
+        master_pattern = []
         while True:
-            # Generate a potential pattern
-            potential_indices = list(range(n))
-            self._rng.shuffle(potential_indices)
+            potential_pattern = list(range(n))
+            self._rng.shuffle(potential_pattern)
             
-            # Check if this pattern would cause any spawn point to overlap with a camp
             overlap_found = False
-            for row_idx, col_idx in enumerate(potential_indices):
-                base_x = base_x_start + col_idx
-                base_y = base_y_start + row_idx
+            for row_idx, col_idx in enumerate(potential_pattern):
+                base_x = offset + col_idx
+                base_y = offset + row_idx
                 
-                # Check all 4 reflections for this single point
-                if (base_x, base_y) in camp_coords or \
-                   (-base_x, base_y) in camp_coords or \
-                   (base_x, -base_y) in camp_coords or \
-                   (-base_x, -base_y) in camp_coords:
+                # Check all 4 reflections for camp overlap
+                if any(pos in camp_coords for pos in [(base_x, base_y), (-base_x, base_y), (base_x, -base_y), (-base_x, -base_y)]):
                     overlap_found = True
-                    break # This permutation is invalid, no need to check further
+                    break
             
             if not overlap_found:
-                col_indices = potential_indices
-                break # Found a valid permutation, exit the loop
+                master_pattern = potential_pattern
+                break
 
-        # Multipliers for reflections: (x_mult, y_mult)
-        clan_orientations = {
-            ClanName.THUNDERCLAN: (1, 1),   # Base
-            ClanName.RIVERCLAN:   (-1, 1),  # Reflect X
-            ClanName.SHADOWCLAN:  (1, -1),  # Reflect Y
-            ClanName.WINDCLAN:    (-1, -1)  # Reflect Both
-        }
+        # 2. Define the setter function to be used by the reflection helper
+        def spawn_point_setter(x, y, clan_name):
+            # Initialize dict for clan if it doesn't exist
+            if clan_name not in self.spawn_points:
+                self.spawn_points[clan_name] = {}
 
-        for clan_name, (x_mult, y_mult) in clan_orientations.items():
-            # Reset/Ensure dict exists
-            self.spawn_points[clan_name] = {}
+            # The row index determines the slot ID (1-6)
+            slot_id = abs(y) - offset + 1
+            self.spawn_points[clan_name][slot_id] = (x, y)
+            
+            # Flag the tile for visualization
+            tile = self.get_tile((x, y))
+            if tile:
+                tile.is_spawn_point = True
+                tile.slot_id = slot_id
 
-            # Apply the Master Pattern
-            for row_idx, col_idx in enumerate(col_indices):
-                
-                # Calculate Base Position (relative to ThunderClan's territory)
-                # row_idx maps to Y (0 to 5)
-                # col_idx maps to X (0 to 5, randomized)
-                base_x = base_x_start + col_idx
-                base_y = base_y_start + row_idx
-                
-                # Apply Reflection to get the final coordinates
-                final_x = base_x * x_mult
-                final_y = base_y * y_mult
-                
-                # Map to Slot ID (1-6)
-                slot_id = row_idx + 1
-                
-                # Store the spawn point coordinate
-                self.spawn_points[clan_name][slot_id] = (final_x, final_y)
-                
-                # Optional: Flag the tile for visualization
-                if (final_x, final_y) in self.grid:
-                    tile = self.grid[(final_x, final_y)]
-                    tile.is_spawn_point = True
-                    tile.slot_id = slot_id
+        # 3. Apply the master pattern using the reflection helper
+        for row_idx, col_idx in enumerate(master_pattern):
+            base_x = offset + col_idx
+            base_y = offset + row_idx
+            self._reflect_and_set(base_x, base_y, spawn_point_setter)
 
     def _assign_border_highlights(self):
         """
-        Randomly selects a percentage of BORDER tiles to be 'Highlighted'.
-        These are the spots where Paw Prints can be placed.
+        Randomly selects a percentage of BORDER tiles to be 'Highlighted' using
+        a symmetrical pattern. It picks points in the first quadrant (positive x,
+        positive y) and reflects them to the other three quadrants.
         """
-        # 1. Filter: Get list of all coordinate tuples (x,y) that are BORDERS
-        border_positions = [
-            pos for pos, tile in self.grid.items()
-            if tile.type == TileType.BORDER
+        # 1. Filter: Get a list of all border tiles in the first quadrant (x > 0, y > 0)
+        base_border_positions = [
+            pos for pos, tile in self.grid.items() if
+            tile.type == TileType.BORDER and pos[0] > 0 and pos[1] > 0
         ]
 
-        # 2. Calculate Count
-        total_border_tiles = len(border_positions)
-        target_count = int(total_border_tiles * GameConfig.BORDER_HIGHLIGHT_RATIO)
+        # 2. Calculate Count: We want the total number of highlights to match the ratio.
+        # Since each point we pick in the base quadrant will create up to 4 highlighted tiles,
+        # we divide the total target by 4.
+        total_border_tiles = len([t for t in self.grid.values() if t.type == TileType.BORDER])
+        total_target_highlights = int(total_border_tiles * GameConfig.BORDER_HIGHLIGHT_RATIO)
+        num_base_points_to_pick = total_target_highlights // 4
 
-        if target_count == 0:
+        if num_base_points_to_pick == 0 or not base_border_positions:
             return
 
-        # 3. Random Selection (No replacement)
-        chosen_positions = self._rng.sample(border_positions, target_count)
+        # 3. Random Selection: Choose the base points from the first quadrant.
+        chosen_base_positions = self._rng.sample(base_border_positions, min(num_base_points_to_pick, len(base_border_positions)))
 
-        # 4. Update Tiles
-        for pos in chosen_positions:
-            self.grid[pos].is_highlighted = True
+        # 4. Define the setter and apply reflections
+        def highlight_setter(x, y):
+            if (x, y) in self.grid:
+                self.grid[(x, y)].is_highlighted = True
+
+        for x, y in chosen_base_positions:
+            self._reflect_and_set(x, y, highlight_setter, use_clan_context=False)
 
     def _assign_starclan_landmarks(self):
         """
-        Randomly selects a percentage of eligible tiles to be 'StarClan Landmarks'.
-        Eligible tiles are any walkable tile that is NOT a spawn point, a
-        highlighted border tile, or a camp entrance.
+        Randomly selects a percentage of eligible tiles to be 'StarClan Landmarks'
+        using a symmetrical pattern.
         """
         camp_coords = set(GameConfig.get_clan_camps().values())
 
-        # 1. Filter: Get a list of all eligible tiles
-        eligible_tiles = [
-            tile for pos, tile in self.grid.items()
-            if tile.is_walkable and
-               not tile.is_spawn_point and
-               not tile.is_highlighted and
-               pos not in camp_coords
-        ]
+        def is_eligible(pos: Tuple[int, int]) -> bool:
+            """Helper to check if a single tile can be a landmark."""
+            tile = self.get_tile(pos)
+            return (
+                tile is not None and
+                tile.is_walkable and
+                not tile.is_spawn_point and
+                not tile.is_highlighted and
+                pos not in camp_coords
+            )
 
-        # 2. Calculate Count based on the ratio of ALL tiles on the board
+        # 1. Find all potential base points in the first quadrant (x>0, y>0)
+        # and validate that all four of their reflections are eligible.
+        valid_base_positions = []
+        for pos in self.grid:
+            x, y = pos
+            if x > 0 and y > 0:
+                # Check the base point and all its reflections
+                if all(is_eligible(p) for p in [(x, y), (-x, y), (x, -y), (-x, -y)]):
+                    valid_base_positions.append(pos)
+
+        # 2. Calculate how many sets of 4 landmarks to create
         total_tiles = len(self.grid)
-        target_count = int(total_tiles * GameConfig.STARCLAN_LANDMARK_RATIO)
+        total_target_landmarks = int(total_tiles * GameConfig.STARCLAN_LANDMARK_RATIO)
+        num_base_points_to_pick = total_target_landmarks // 4
 
-        if target_count == 0 or not eligible_tiles:
+        if num_base_points_to_pick == 0 or not valid_base_positions:
             return
 
-        # 3. Random Selection (ensure we don't try to pick more than are eligible)
-        chosen_tiles = self._rng.sample(eligible_tiles, min(target_count, len(eligible_tiles)))
+        # 3. Randomly select the base points
+        chosen_base_positions = self._rng.sample(valid_base_positions, min(num_base_points_to_pick, len(valid_base_positions)))
 
-        # 4. Update Tiles
-        for tile in chosen_tiles:
-            tile.is_starclan_landmark = True
+        # 4. Define the setter and apply reflections
+        def landmark_setter(x, y):
+            self.grid[(x, y)].is_starclan_landmark = True
+
+        for x, y in chosen_base_positions:
+            self._reflect_and_set(x, y, landmark_setter, use_clan_context=False)
+
     # --- Public Methods ---
 
     def clear_prey(self):
